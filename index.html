@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#0a121c" />
+  <title>Surface Lab · Superficies en realidad mixta</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <header class="brand"><span class="brand-mark">∿</span><div><strong>SURFACE LAB</strong><span>Matemáticas · 3D · Realidad mixta</span></div></header>
+      <div class="sidebar-scroll">
+        <div class="eyebrow">01 / ECUACIÓN</div>
+        <h1>Diseña una superficie</h1>
+        <p class="help">Escribe una función de dos variables y observa su geometría en tres dimensiones.</p>
+        <form id="equation-form">
+          <label for="equation">Superficie <span class="formula-tag">z = f(x, y)</span></label>
+          <div class="formula-field"><span class="prefix">z =</span><input id="equation" spellcheck="false" autocomplete="off" value="sin(1.5*x)*cos(1.5*y)" aria-label="Ecuación para z" /></div>
+          <button class="primary" type="submit"><span>↗</span> Representar superficie</button>
+        </form>
+        <div id="feedback" class="feedback" role="status" aria-live="polite">Superficie generada correctamente.</div>
+        <div class="preset-label">EJEMPLOS PARA PROBAR</div>
+        <div class="presets" id="presets">
+          <button type="button" data-expression="sin(1.5*x)*cos(1.5*y)">Ondas</button>
+          <button type="button" data-expression="x^2-y^2">Silla de montar</button>
+          <button type="button" data-expression="2*exp(-(x^2+y^2))">Gaussiana</button>
+          <button type="button" data-expression="sin(3*sqrt(x^2+y^2))">Ondas circulares</button>
+          <button type="button" data-expression="sqrt(9-x^2-y^2)">Semiesfera</button>
+          <button type="button" data-expression="A*sin(k*x)*cos(k*y)">Parámetros A, k</button>
+        </div>
+        <div id="params-section" class="params-section hidden"><div class="section-title">Parámetros</div><div id="params"></div></div>
+        <div class="separator"></div>
+        <div class="eyebrow">02 / VISUALIZACIÓN</div>
+        <div class="field-head"><label for="domain">Extensión de los ejes</label><output id="domain-label">±5</output></div>
+        <input id="domain" type="range" min="1" max="10" step="0.5" value="5" />
+        <div class="field-head"><label for="height">Escala vertical</label><output id="height-label">1.0×</output></div>
+        <input id="height" type="range" min="0.2" max="2.5" step="0.1" value="1" />
+        <div class="field-head"><label for="resolution">Resolución de la malla</label><output id="resolution-label">55 × 55</output></div>
+        <input id="resolution" type="range" min="20" max="100" step="5" value="55" />
+        <label for="style">Estilo de representación</label>
+        <select id="style"><option value="both">Superficie y malla</option><option value="solid">Superficie sólida</option><option value="wire">Solo malla</option></select>
+        <label for="palette">Paleta de color</label>
+        <select id="palette"><option value="0">Azul ↔ coral</option><option value="1">Turquesa ↔ dorado</option><option value="2">Violeta ↔ rosa</option><option value="3">Monocromática</option></select>
+        <div class="toggles"><label class="toggle"><input id="axes" type="checkbox" checked /> Mostrar ejes</label><label class="toggle"><input id="grid" type="checkbox" checked /> Mostrar plano de referencia</label></div>
+        <div class="separator"></div>
+        <div class="small-note"><strong>Consejo</strong><span>Admite sin, cos, exp, sqrt, log, abs, potencias con ^ y constantes pi, e. Multiplica usando * y usa radianes.</span></div>
+      </div>
+      <div class="sidebar-bottom"><span class="dot"></span> Prototipo local · sin cuentas ni dependencias</div>
+    </aside>
+    <main class="main-stage">
+      <header class="topbar"><div class="breadcrumb">VISUALIZADOR <span>/</span> SUPERFICIE 3D</div><span class="version">v1.0 · Quest 3 ready*</span></header>
+      <div class="stage-wrap" id="stage-wrap">
+        <video id="camera-video" autoplay muted playsinline></video>
+        <canvas id="gl-canvas" aria-label="Visualización tridimensional de la superficie"></canvas>
+        <div class="stage-top"><div class="scene-title"><span class="live-dot"></span><span id="scene-name">SUPERFICIE MATEMÁTICA</span></div><div class="scene-chips"><span class="chip">X</span><span class="chip">Y</span><span class="chip">Z</span></div></div>
+        <div class="stage-help" id="stage-help">Arrastra para girar · Rueda para acercar · Botón derecho para desplazar</div>
+        <div class="stage-bottom">
+          <div class="mode-buttons"><button class="mode active" id="view-3d" type="button"><span>◫</span> Vista 3D</button><button class="mode" id="view-camera" type="button"><span>◎</span> Webcam + 3D</button><button class="mode xr" id="view-xr" type="button" title="Requiere navegador Quest compatible y HTTPS"><span>◈</span> Quest RM</button></div>
+          <div class="stage-actions"><button type="button" id="reset-view" title="Restablecer vista" aria-label="Restablecer vista">⟲</button><button type="button" id="save-image" title="Guardar captura PNG" aria-label="Guardar captura PNG">⇩</button></div>
+        </div>
+        <div class="camera-badge" id="camera-badge" hidden>● CÁMARA ACTIVA · SUPERPOSICIÓN SIN ANCLAJE</div>
+        <div id="notice" class="notice" hidden role="alert"></div>
+      </div>
+      <footer class="statusbar"><div id="surface-stats">—</div><div id="device-status">Comprobando WebXR…</div></footer>
+    </main>
+  </div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
