@@ -8,7 +8,7 @@ export function clamp(v,lo,hi){return Math.max(lo,Math.min(hi,v));}
 export function dot(a,b){return a[0]*b[0]+a[1]*b[1]+a[2]*b[2];}
 export function rayFromMatrix(m){
   const d=[-m[8],-m[9],-m[10]],len=Math.hypot(...d)||1;
-  return {origin:[m[12],m[13],m[14]],dir:d.map(v=>v/len)};
+  return {origin:[m[12],m[13],m[14]],dir:d.map(v=>v===0?0:v/len)};
 }
 export function panelPose(viewerMatrix) {
   const m=viewerMatrix, right=[m[0],m[1],m[2]],up=[m[4],m[5],m[6]],back=[m[8],m[9],m[10]];
