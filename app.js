@@ -1,4 +1,5 @@
 import {parseSurfaceEquation} from './parser.mjs';
+import {XRPanel,clamp,rayFromMatrix,modelXRMatrix} from './xr-panel.mjs';
 
 const $=id=>document.getElementById(id);
 const canvas=$('gl-canvas'), stage=$('stage-wrap'), video=$('camera-video');
@@ -212,35 +213,185 @@ $('save-image').addEventListener('click',()=>{
   cx.drawImage(canvas,0,0);const a=document.createElement('a');a.href=c.toDataURL('image/png');a.download='surface-lab.png';a.click();
 });
 
-function placeXRModel(pose){const m=pose.views[0].transform.matrix,p=pose.views[0].transform.position;
-  const fx=-m[8],fy=-m[9],fz=-m[10];
-  state.xrModel=modelMatrix(p.x+fx*1.55,p.y+fy*1.55-.42,p.z+fz*1.55,.48);
+// The 2D HTML sidebar is not rendered by immersive WebXR.
+// Quest gets a real, textured, in-world panel that controllers can aim at.
+let xrPanel=null, xrGrab=null, xrTransform=null, xrLaser=null, xrLastTime=0, xrPose=null;
+function placeXRModel(pose){
+  const m=pose.transform.matrix;
+  const forward=[-m[8],-m[9],-m[10]];
+  xrTransform={
+    position:[m[12]+forward[0]*1.55,m[13]+forward[1]*1.55-.35,m[14]+forward[2]*1.55],
+    yaw:0,pitch:0,scale:.48
+  };
+  state.xrModel=modelXRMatrix(xrTransform);
+}
+function xrRay(frame,src){
+  if(!src.targetRaySpace)return null;
+  const p=frame.getPose(src.targetRaySpace,state.xrSpace);
+  return p?rayFromMatrix(p.transform.matrix):null;
+}
+function isNearModel(ray){
+  if(!ray||!xrTransform)return false;
+  const to=xrTransform.position.map((v,i)=>v-ray.origin[i]);
+  const along=to.reduce((v,x,i)=>v+x*ray.dir[i],0);
+  if(along<.10||along>6)return false;
+  const sq=to.reduce((v,x)=>v+x*x,0)-along*along;
+  return sq<Math.pow(1.78*xrTransform.scale,2);
+}
+function startGrab(event,requireHit){
+  if(xrGrab||!xrTransform)return;
+  const src=event.inputSource;
+  const ray=xrRay(event.frame,src);
+  if(requireHit&&!isNearModel(ray))return;
+  const space=src.gripSpace||src.targetRaySpace;
+  if(!space)return;
+  const p=event.frame.getPose(space,state.xrSpace);
+  if(!p)return;
+  xrGrab={src,space,origin:[p.transform.position.x,p.transform.position.y,p.transform.position.z],
+    position:[...xrTransform.position]};
+}
+function menuCommand(cmd,arg){
+  if(cmd==='equation'){
+    const old=equation.value;equation.value=arg;
+    submitExpression();
+    if(feedback.classList.contains('error')){const error=feedback.textContent;equation.value=old;return error;}
+    return '';
+  }
+  if(cmd==='recenter'){if(xrPose)placeXRModel(xrPose);return;}
+  if(cmd==='exit'){state.xrSession?.end();return;}
+  if(cmd==='style'){
+    const names=['both','solid','wire'];state.style=names[(names.indexOf(state.style)+1)%names.length];
+    $('style').value=state.style;return;
+  }
+  if(cmd==='palette'){state.palette=(state.palette+1)%4;$('palette').value=String(state.palette);return;}
+  if(cmd.startsWith('param:')){
+    const [,name,sign]=cmd.split(':');
+    if(!Object.hasOwn(state.parameters,name))return;
+    state.parameters[name]=Math.round(clamp(state.parameters[name]+(sign==='+'?.1:-.1),-5,5)*100)/100;
+    try{regenerate();makeParams(state.compiled.parameters);}catch(e){setFeedback(e.message,true);}
+    return;
+  }
+  const [field,sign]=cmd.split(':');
+  if(field==='domain'||field==='height'){
+    const id=field,inc=field==='domain'?.5:.1;
+    const min=field==='domain'?1:.2,max=field==='domain'?10:2.5;
+    $(id).value=String(Math.round(clamp(state[field]+(sign==='+'?inc:-inc),min,max)*10)/10);
+    $(id).dispatchEvent(new Event('input'));
+  } else if(field==='scale'&&xrTransform){
+    xrTransform.scale=clamp(Math.round((xrTransform.scale+(sign==='+'?.08:-.08))*100)/100,.16,1.35);
+    state.xrModel=modelXRMatrix(xrTransform);
+  }
+}
+function xrSelectStart(e){
+  if(!state.xrSession)return;
+  const ray=xrRay(e.frame,e.inputSource);
+  const hit=ray&&xrPanel?.hit(ray);
+  if(hit){
+    if(hit.id)xrPanel.activate(hit.id);
+    return; // no model drag while aiming at the menu
+  }
+  startGrab(e,true);
+}
+function xrGrabUpdate(frame){
+  if(!xrGrab)return;
+  const p=frame.getPose(xrGrab.space,state.xrSpace);
+  if(!p){xrGrab=null;return;}
+  const now=p.transform.position;
+  xrTransform.position=xrGrab.position.map((v,i)=>v+[now.x,now.y,now.z][i]-xrGrab.origin[i]);
+}
+function xrControllerInputs(frame,t){
+  if(!xrTransform||!xrPanel)return;
+  xrGrabUpdate(frame);
+  const dt=clamp((t-(xrLastTime||t))/1000,0,.05);xrLastTime=t;
+  const rays=[];let hovered=null;
+  for(const src of frame.session.inputSources){
+    const ray=xrRay(frame,src);
+    if(ray){
+      const hit=xrPanel.hit(ray);
+      if(hit?.id&&!hovered)hovered=hit.id;
+      const distance=hit?.distance??2.5;
+      const tip=ray.origin.map((v,i)=>v+ray.dir[i]*distance);
+      pushLine(rays,ray.origin,tip,hit?.id?[.37,1,.75]:[.30,.73,1]);
+    }
+    // Quest Touch axes normally use indices 2 and 3; some controllers expose 0 and 1.
+    const axes=src.gamepad?.axes;
+    if(!axes||axes.length<2)continue;
+    const ax=axes.length>=4?axes[2]:axes[0],ay=axes.length>=4?axes[3]:axes[1];
+    const x=Math.abs(ax)>.15?ax:0,y=Math.abs(ay)>.15?ay:0;
+    if(src.handedness==='left'){
+      xrTransform.yaw-=x*dt*1.65;
+      xrTransform.pitch=clamp(xrTransform.pitch+y*dt*1.5,-1.25,1.25);
+    }else if(src.handedness==='right'){
+      xrTransform.scale=clamp(xrTransform.scale*(1-y*dt*1.4),.16,1.35);
+    }
+  }
+  xrPanel.hover(hovered);
+  if(!xrLaser){const b=gl.createBuffer();xrLaser={buffer:b,count:0};}
+  gl.bindBuffer(gl.ARRAY_BUFFER,xrLaser.buffer);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(rays),gl.DYNAMIC_DRAW);
+  xrLaser.count=rays.length/6;
+  state.xrModel=modelXRMatrix(xrTransform);
 }
 async function enterXR(){
-  if(!navigator.xr){showNotice('WebXR no está disponible aquí. Abre esta web desde Meta Quest Browser (HTTPS).');return;}
+  if(!navigator.xr){showNotice('Abre la app en Meta Quest Browser mediante HTTPS para usar WebXR.');return;}
   let session;
   try{
-    session=await navigator.xr.requestSession('immersive-ar',{requiredFeatures:['local'],optionalFeatures:['dom-overlay'],domOverlay:{root:document.body}});
+    session=await navigator.xr.requestSession('immersive-ar',{requiredFeatures:['local']});
     await stopCamera();setMode('3d');
     if(gl.makeXRCompatible)await gl.makeXRCompatible();
     const layer=new XRWebGLLayer(session,gl,{alpha:true,antialias:true,depth:true});
-    session.updateRenderState({baseLayer:layer});const space=await session.requestReferenceSpace('local');
+    session.updateRenderState({baseLayer:layer});
+    const space=await session.requestReferenceSpace('local');
     state.xrSession=session;state.xrSpace=space;state.xrModel=null;
-    session.addEventListener('select',()=>{if(state.xrPose)placeXRModel(state.xrPose);});
-    session.addEventListener('end',()=>{state.xrSession=null;state.xrSpace=null;state.xrModel=null;state.xrPose=null;
-      $('view-xr').classList.remove('active');$('stage-help').textContent='Arrastra para girar · Rueda para acercar · Botón derecho para desplazar';requestAnimationFrame(frame);});
-    $('view-xr').classList.add('active');session.requestAnimationFrame(xrFrame);
-  }catch(e){if(session&&!state.xrSession)await session.end().catch(()=>{});showNotice('No se pudo iniciar realidad mixta: '+e.message+' Comprueba que Quest Browser admita immersive-ar y que uses HTTPS.');}
+    xrPose=null;xrGrab=null;xrTransform=null;xrLastTime=0;
+    xrPanel=new XRPanel(gl,()=>({
+      expression:state.compiled?.expression||equation.value,
+      params:state.parameters,domain:state.domain,height:state.height,
+      scale:xrTransform?.scale??.48,style:state.style,palette:state.palette
+    }),menuCommand);
+    session.addEventListener('selectstart',xrSelectStart);
+    session.addEventListener('selectend',e=>{if(xrGrab?.src===e.inputSource)xrGrab=null;});
+    session.addEventListener('squeezestart',e=>startGrab(e,false));
+    session.addEventListener('squeezeend',e=>{if(xrGrab?.src===e.inputSource)xrGrab=null;});
+    session.addEventListener('end',()=>{
+      state.xrSession=null;state.xrSpace=null;state.xrModel=null;xrPose=null;xrGrab=null;xrTransform=null;xrLastTime=0;
+      xrPanel?.dispose();xrPanel=null;
+      if(xrLaser){gl.deleteBuffer(xrLaser.buffer);xrLaser=null;}
+      $('view-xr').classList.remove('active');
+      $('stage-help').textContent='Arrastra para girar · Rueda para acercar · Botón derecho para desplazar';
+      requestAnimationFrame(frame);
+    });
+    $('view-xr').classList.add('active');
+    $('stage-help').textContent='Dentro de Quest: apunta al menú y pulsa el gatillo. Agarre para mover.';
+    session.requestAnimationFrame(xrFrame);
+  }catch(e){
+    if(session&&!state.xrSession)await session.end().catch(()=>{});
+    showNotice('No se pudo iniciar realidad mixta: '+e.message);
+  }
 }
-function xrFrame(t,frame){const session=frame.session;if(!state.xrSession)return;session.requestAnimationFrame(xrFrame);
+function xrFrame(t,frame){
+  const session=frame.session;if(!state.xrSession)return;
+  session.requestAnimationFrame(xrFrame);
   const pose=frame.getViewerPose(state.xrSpace);if(!pose)return;
-  state.xrPose=pose;if(!state.xrModel)placeXRModel(pose);
+  xrPose=pose;
+  if(!xrTransform)placeXRModel(pose);
+  xrPanel?.setPose(pose.transform.matrix);
+  xrControllerInputs(frame,t);
   const layer=session.renderState.baseLayer;
   gl.bindFramebuffer(gl.FRAMEBUFFER,layer.framebuffer);
   gl.enable(gl.SCISSOR_TEST);
-  for(const view of pose.views){const vp=layer.getViewport(view);gl.viewport(vp.x,vp.y,vp.width,vp.height);gl.scissor(vp.x,vp.y,vp.width,vp.height);
+  for(const view of pose.views){
+    const viewport=layer.getViewport(view);
+    gl.viewport(viewport.x,viewport.y,viewport.width,viewport.height);
+    gl.scissor(viewport.x,viewport.y,viewport.width,viewport.height);
     gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-    drawScene(mul(mul(view.projectionMatrix,view.transform.inverse.matrix),state.xrModel));}
+    const viewProjection=mul(view.projectionMatrix,view.transform.inverse.matrix);
+    drawScene(mul(viewProjection,state.xrModel));
+    gl.disable(gl.DEPTH_TEST);
+    if(xrLaser?.count)drawLines(xrLaser,viewProjection,.85);
+    gl.enable(gl.DEPTH_TEST);
+    xrPanel?.draw(viewProjection,mul);
+  }
   gl.disable(gl.SCISSOR_TEST);
 }
 $('view-xr').addEventListener('click',()=>{if(state.xrSession)state.xrSession.end();else enterXR();});
