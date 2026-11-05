@@ -1,6 +1,7 @@
 import {parseSurfaceEquation} from './parser.mjs';
 import {XRPanel,clamp,rayFromMatrix,modelXRMatrix,quatMultiply,quatAxisAngle,quaternionFromPose,relativeControllerRotation,menuPositionFromRay,translatedMenuCenter,nextMeshResolution} from './xr-panel.mjs';
 import {XRPlanarShadow,planeFromHitMatrix,modelClearance} from './xr-spatial.mjs';
+import {findTableFit,fitScaleFromWidth,measureShortEdge} from './xr-table-fit.mjs';
 
 const $=id=>document.getElementById(id);
 const canvas=$('gl-canvas'), stage=$('stage-wrap'), video=$('camera-video');
@@ -260,6 +261,7 @@ async function initXRSpatial(session){
   const enabled=typeof session.requestHitTestSource==='function' &&
     (!session.enabledFeatures||session.enabledFeatures.includes('hit-test'));
   xrSpatial={supported:enabled,scanning:false,preview:null,plane:null,shadow:true,
+    autoFit:true,measuring:false,measurePoints:[],fitStatus:'',
     lightAngle:35,opacity:0.31,viewerSource:null,controllerSources:new Map(),error:''};
   xrShadow=new XRPlanarShadow(gl);
   if(!enabled){xrSpatial.error='Hit-test no disponible en Quest Browser.';return;}
@@ -332,14 +334,54 @@ function updateXRReticle(hit){
   gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(lines),gl.DYNAMIC_DRAW);
   xrReticle.count=lines.length/6;
 }
-function placeOnRealSurface(hit){
+function placeOnRealSurface(hit,frame){
   if(!hit||!xrTransform||!xrSpatial)return;
+  // A hit test returns only a point/normal. Automatic sizing requires the
+  // independent, optional WebXR plane-detection surface polygon.
+  const fit=xrSpatial.autoFit&&frame?findTableFit(frame,state.xrSpace,hit.point):null;
+  if(fit)xrTransform.scale=fit.scale;
+  const center=fit?.center||hit.point;
   const clearance=modelClearance(state.data,xrTransform.scale,state.height);
-  xrTransform.position=hit.point.map((x,i)=>x+hit.normal[i]*clearance);
+  xrTransform.position=center.map((x,i)=>x+hit.normal[i]*clearance);
   xrTransform.yaw=0;xrTransform.pitch=0;xrTransform.rotation=[0,0,0,1];
   state.xrModel=modelXRMatrix(xrTransform);
-  xrSpatial.plane={point:[...hit.point],normal:[...hit.normal]};
+  xrSpatial.plane={point:[...center],normal:[...hit.normal]};
   xrSpatial.scanning=false;xrSpatial.preview=null;
+  xrSpatial.measuring=false;xrSpatial.measurePoints=[];
+  xrSpatial.fitStatus=fit?
+    'Mesa aprox. '+fit.width.toFixed(2)+' × '+fit.depth.toFixed(2)+' m; escala ajustada.':
+    xrSpatial.autoFit?'Contorno no disponible: mide el lado corto con 2 puntos.':
+    'Superficie colocada, tamaño manual.';
+  if(xrReticle)xrReticle.count=0;
+  if(xrPanel)xrPanel.dirty=true;
+}
+function recordTableWidth(hit){
+  const sp=xrSpatial;
+  if(!hit||!sp?.measuring||!xrTransform)return;
+  if(sp.measurePoints.length===0){
+    sp.measurePoints=[hit];
+    sp.fitStatus='Primer extremo marcado. Marca el segundo sobre el borde corto.';
+    xrPanel.dirty=true;return;
+  }
+  const distance=measureShortEdge(sp.measurePoints[0],hit);
+  if(!distance){
+    sp.fitStatus='Puntos no válidos: deben estar en el mismo borde horizontal.';
+    sp.measurePoints=[];
+    xrPanel.dirty=true;return;
+  }
+  const fitted=fitScaleFromWidth(distance);
+  if(fitted===null)return;
+  xrTransform.scale=fitted;
+  // Keep the original support location. Measuring two points must NOT
+  // silently move the model to the edge or midpoint between them.
+  const anchor=sp.plane?.point||hit.point;
+  const normal=sp.plane?.normal||hit.normal;
+  const clearance=modelClearance(state.data,fitted,state.height);
+  xrTransform.position=anchor.map((v,i)=>v+normal[i]*clearance);
+  state.xrModel=modelXRMatrix(xrTransform);
+  if(!sp.plane)sp.plane={point:[...anchor],normal:[...normal]};
+  sp.fitStatus='Ancho medido: '+distance.toFixed(2)+' m · función ajustada.';
+  sp.measuring=false;sp.measurePoints=[];sp.scanning=false;sp.preview=null;
   if(xrReticle)xrReticle.count=0;
   xrPanel.dirty=true;
 }
@@ -359,19 +401,37 @@ function menuCommand(cmd,arg){
   }
   if(cmd==='recenter'){
     if(xrPose)placeXRModel(xrPose);
-    if(xrSpatial){xrSpatial.plane=null;xrSpatial.preview=null;xrSpatial.scanning=false;}
+    if(xrSpatial){xrSpatial.plane=null;xrSpatial.preview=null;xrSpatial.scanning=false;
+      xrSpatial.measuring=false;xrSpatial.measurePoints=[];xrSpatial.fitStatus='';}
+    return;
+  }
+  if(cmd==='fit-toggle'){
+    if(xrSpatial){xrSpatial.autoFit=!xrSpatial.autoFit;xrSpatial.fitStatus='';}
+    return;
+  }
+  if(cmd==='measure-width'){
+    if(!xrSpatial?.supported)return;
+    xrSpatial.measuring=!xrSpatial.measuring;
+    xrSpatial.scanning=xrSpatial.measuring;
+    xrSpatial.measurePoints=[];
+    xrSpatial.fitStatus=xrSpatial.measuring?
+      'Marca dos extremos del lado más corto de la mesa.':'Medición cancelada.';
+    if(xrReticle)xrReticle.count=0;
+    xrPanel.dirty=true;
     return;
   }
   if(cmd==='place-mode'){
     if(!xrSpatial?.supported)return;
     xrSpatial.scanning=!xrSpatial.scanning;
+    xrSpatial.measuring=false;xrSpatial.measurePoints=[];
     xrSpatial.preview=null;
     if(xrReticle)xrReticle.count=0;
     xrPanel.dirty=true;
     return;
   }
   if(cmd==='reset-plane'){
-    if(xrSpatial){xrSpatial.plane=null;xrSpatial.scanning=false;xrSpatial.preview=null;}
+    if(xrSpatial){xrSpatial.plane=null;xrSpatial.scanning=false;xrSpatial.preview=null;
+      xrSpatial.measuring=false;xrSpatial.measurePoints=[];xrSpatial.fitStatus='';}
     if(xrReticle)xrReticle.count=0;
     return;
   }
@@ -492,7 +552,10 @@ function xrSelectStart(e){
   }
   if(xrSpatial?.scanning){
     const detected=xrFrameHits.get(e.inputSource)??xrSpatial.preview;
-    if(detected)placeOnRealSurface(detected);
+    if(detected){
+      if(xrSpatial.measuring)recordTableWidth(detected);
+      else placeOnRealSurface(detected,e.frame);
+    }
     return; // never grab the virtual surface while placing on a real plane
   }
   startRotation(e);
@@ -548,7 +611,7 @@ async function enterXR(){
   if(!navigator.xr){showNotice('Abre la app en Meta Quest Browser mediante HTTPS para usar WebXR.');return;}
   let session;
   try{
-    session=await navigator.xr.requestSession('immersive-ar',{requiredFeatures:['local'],optionalFeatures:['hit-test']});
+    session=await navigator.xr.requestSession('immersive-ar',{requiredFeatures:['local'],optionalFeatures:['hit-test','plane-detection']});
     await stopCamera();setMode('3d');
     if(gl.makeXRCompatible)await gl.makeXRCompatible();
     const layer=new XRWebGLLayer(session,gl,{alpha:true,antialias:true,depth:true});
@@ -566,7 +629,9 @@ async function enterXR(){
       hitAvailable:!!xrSpatial?.supported,scanning:!!xrSpatial?.scanning,
       hitReady:!!xrSpatial?.preview,placed:!!xrSpatial?.plane,
       shadowOn:!!xrSpatial?.shadow,lightAngle:xrSpatial?.lightAngle??35,
-      opacity:xrSpatial?.opacity??.31
+      opacity:xrSpatial?.opacity??.31,autoFit:!!xrSpatial?.autoFit,
+      measuring:!!xrSpatial?.measuring,measureProgress:xrSpatial?.measurePoints?.length??0,
+      fitStatus:xrSpatial?.fitStatus??''
     }),menuCommand);
     session.addEventListener('selectstart',xrSelectStart);
     session.addEventListener('selectend',e=>{
