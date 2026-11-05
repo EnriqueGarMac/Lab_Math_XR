@@ -2,7 +2,9 @@
 // The functions below are independent of the browser and do not access camera data.
 export function fitScaleFromWidth(width, margin=0.72, footprint=2.4) {
   if(!Number.isFinite(width)||width<=0)return null;
-  return Math.min(1.35,Math.max(0.16,width*margin/footprint));
+  const scale=width*margin/footprint;
+  // Never silently enlarge a very small tabletop beyond its measured width.
+  return scale<0.08?null:Math.min(1.35,scale);
 }
 export function measureShortEdge(a,b) {
   if(!a?.point||!b?.point||Math.abs(a.point[1]-b.point[1])>0.12)return null;
