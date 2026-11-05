@@ -38,6 +38,12 @@ export function tableFromPlane(polygon,poseMatrix,hitPoint,label='') {
   if(!polygon||polygon.length<3||!poseMatrix||!hitPoint)return null;
   const yaxis=[poseMatrix[4],poseMatrix[5],poseMatrix[6]];
   if(Math.abs(yaxis[1])<0.84)return null; // reject vertical planes
+  // A tabletop and the floor can overlap in X/Z. Match the actual hit plane,
+  // not just a polygon that happens to sit above the controller ray.
+  const distance=(hitPoint[0]-poseMatrix[12])*yaxis[0]
+    +(hitPoint[1]-poseMatrix[13])*yaxis[1]
+    +(hitPoint[2]-poseMatrix[14])*yaxis[2];
+  if(Math.abs(distance)>0.09)return null;
   const semantic=String(label||'').toLowerCase();
   if(/floor|wall|ceiling|door|window/.test(semantic))return null;
   const poly=polygon.map(p=>({x:Number(p.x),z:Number(p.z)}));
