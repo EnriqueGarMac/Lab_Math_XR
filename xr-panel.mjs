@@ -99,17 +99,28 @@ const PRESETS=[
   ['Semiesfera','sqrt(9-x^2-y^2)'],
   ['Con parámetros','A*sin(k*x)*cos(k*y)']
 ];
-const KEYS=[
+const MATH_KEYS=[
   ['sin(','cos(','tan(','sqrt(','exp(','log('],
   ['7','8','9','(',')','^'],
   ['4','5','6','*','/','x'],
   ['1','2','3','+','-','y'],
   ['0','.','A','k','pi','←']
 ];
+const LETTER_KEYS=[
+  ['a','b','c','d','e','f'],
+  ['g','h','i','j','k','l'],
+  ['m','n','o','p','q','r'],
+  ['s','t','u','v','w','x'],
+  ['y','z','A','B','_','←']
+];
+export function nextMeshResolution(current,step){
+  const n=Math.round((current+step)/5)*5;
+  return clamp(n,20,100);
+}
 export class XRPanel {
   constructor(gl,getState,onCommand) {
     this.gl=gl;this.getState=getState;this.onCommand=onCommand;
-    this.page='main';this.editValue='';this.error='';this.dirty=true;
+    this.page='main';this.editValue='';this.keyLayout='math';this.error='';this.dirty=true;
     this.hoverId=null;this.hits=[];this.pose=null;
     this.canvas=document.createElement('canvas');this.canvas.width=SCREEN_W;this.canvas.height=SCREEN_H;
     this.ctx=this.canvas.getContext('2d');
@@ -174,33 +185,44 @@ export class XRPanel {
     this.hits.push({id:'menu-handle',x:17,y:17,w:734,h:81});
     const s=this.getState();
     if(this.page==='main'){
-      this.text('z = '+(s.expression||'').slice(0,36),42,132,24,'#f5fcff');
-      this.text('Gatillo: rotar objeto · agarre: mover · cabecera: mover menú',42,176,17,'#a3c9d3');
+      this.text('z = '+(s.expression||'').slice(0,37),42,132,24,'#f5fcff');
+      // Editing is prominent rather than hidden below all the mesh controls.
+      this.button('edit','✎ ESCRIBIR MI ECUACIÓN',39,169,689,72,true);
+      this.text('O elige una función de ejemplo:',42,269,21,'#b5d3df');
       PRESETS.forEach(([name],i)=>{
         const col=i%2,row=Math.floor(i/2);
-        this.button('preset:'+i,name,39+col*352,213+row*75,333,62);
+        this.button('preset:'+i,name,39+col*352,293+row*66,333,56);
       });
-      this.adj('Dominio (±)',s.domain.toFixed(1),'domain:-','domain:+',440);
-      this.adj('Altura vertical',s.height.toFixed(1)+' ×','height:-','height:+',530);
-      this.adj('Tamaño en la habitación',s.scale.toFixed(2)+' ×','scale:-','scale:+',620);
+      this.adj('Densidad de malla (20–100)',s.resolution+' × '+s.resolution,
+        'resolution:-','resolution:+',502);
+      this.adj('Dominio (±)',s.domain.toFixed(1),'domain:-','domain:+',596);
+      this.adj('Escala vertical',s.height.toFixed(1)+' ×','height:-','height:+',690);
+      this.adj('Tamaño en la habitación',s.scale.toFixed(2)+' ×','scale:-','scale:+',784);
+      this.button('settings','Aspecto y parámetros',39,887,331,67);
+      this.button('menu-place','Mover menú',390,887,338,67,true);
+      this.button('scene','Mesa / suelo / sombra',39,976,478,66);
+      this.button('exit','Salir de RM',530,976,198,66);
+      this.text('Cabecera: mover panel · gatillo: rotar función',384,1085,18,'#95b1be','center');
+    }else if(this.page==='settings'){
+      this.button('back','‹ Volver a funciones',39,122,350,66);
+      this.text('ASPECTO DE LA SUPERFICIE',40,235,29,'#e1f8ff');
+      this.button('style','Estilo: '+(s.style==='both'?'Sólido y malla':s.style==='wire'?'Malla':'Sólido'),
+        39,281,689,78,true);
+      this.button('palette','Cambiar colores',39,387,689,78);
+      this.button('axes','Ejes: '+(s.axes?'visibles':'ocultos'),39,493,331,75);
+      this.button('grid','Plano base: '+(s.grid?'visible':'oculto'),390,493,338,75);
+      this.text('PARÁMETROS DE LA ECUACIÓN',40,628,26,'#e1f8ff');
       const keys=Object.keys(s.params);
-      if(keys.length){
-        keys.slice(0,2).forEach((k,i)=>{
-          const y=727+i*69;this.text('Parámetro '+k,40,y-7,19,'#a7c3d0');
-          this.button('param:'+k+':-', '−',235,y-31,87,54);
-          this.text(Number(s.params[k]).toFixed(2),390,y-4,23,'#e6f7fb','center');
-          this.button('param:'+k+':+', '+',460,y-31,87,54);
-        });
-      }else this.text('Puedes probar una función con parámetros A y k',40,755,19,'#a7c3d0');
-      this.button('style','Estilo: '+(s.style==='both'?'Malla + sólido':s.style==='wire'?'Malla':'Sólido'),39,865,335,61);
-      this.button('palette','Cambiar color',395,865,333,61);
-      this.button('edit','⌨ Editar ecuación',39,947,333,61,true);
-      this.button('recenter','Centrar modelo',395,947,158,61);
-      this.button('menu-place','Mover menú',565,947,163,61,true);
-      this.button('scene','Mesa / suelo / sombra',39,1021,478,56,true);
-      this.button('exit','Salir',530,1021,198,56);
-      this.text('Stick izq.: girar  ·  Stick dcho.: tamaño',384,1098,17,'#95b1be','center');
-    }else if(this.page==='scene'){
+      if(!keys.length)this.text('Esta ecuación no tiene parámetros libres.',40,691,21,'#b4d3de');
+      else keys.slice(0,4).forEach((key,i)=>{
+        const y=659+i*93;
+        this.text('Parámetro '+key,40,y+7,21,'#acd2de');
+        this.button('param:'+key+':-','−',216,y+21,106,58);
+        this.text(Number(s.params[key]).toFixed(2),403,y+50,24,'#e6f7fb','center');
+        this.button('param:'+key+':+','+',565,y+21,106,58);
+      });
+      this.button('edit','✎ Nueva ecuación',39,1031,689,59,true);
+        }else if(this.page==='scene'){
       this.button('back','‹ Volver a funciones',38,119,349,66);
       this.text('SUPERFICIES REALES',42,226,30,'#e4f8ff');
       this.text('Detección mediante WebXR hit-test (si disponible)',42,267,19,'#96bfcb');
@@ -221,18 +243,22 @@ export class XRPanel {
       this.text('No proyecta luz física ni oculta objetos reales.',42,1006,18,'#9fc0c9');
       this.button('exit','Salir de realidad mixta',39,1031,689,59);
     }else{
-      this.button('back','‹ Volver',40,118,196,63);
-      this.text('EDITOR DE ECUACIONES',260,150,26,'#d2eaf2');
-      rounded(ctx,38,198,690,103,12,'#091a2a','#477080');
+      this.button('back','‹ Volver',39,119,190,63);
+      this.button('layout',this.keyLayout==='math'?'ABC':'123 / f(x)',244,119,173,63);
+      this.button('current','Cargar ecuación actual',432,119,296,63);
+      this.text('ESCRIBE z = f(x, y)',42,226,28,'#d2eaf2');
+      rounded(ctx,38,259,690,80,12,'#091a2a','#477080');
       const v=this.editValue;
-      this.text('z = '+(v.length>41?'…'+v.slice(-41):v),58,250,24,'#e7feff');
-      KEYS.forEach((row,r)=>row.forEach((key,c)=>{
-        const x=38+c*119,y=339+r*119;
-        this.button('key:'+key,key,x,y,108,102);
+      this.text('z = '+(v.length>42?'…'+v.slice(-42):v),56,300,25,'#e7feff');
+      (this.keyLayout==='math'?MATH_KEYS:LETTER_KEYS).forEach((row,r)=>row.forEach((key,c)=>{
+        const x=38+c*119,y=362+r*112;
+        this.button('key:'+key,key,x,y,108,96);
       }));
-      this.button('clear','Borrar todo',38,954,215,73);
-      this.button('apply','✓ Representar',264,954,464,73,true);
-      this.text(this.error?this.error.slice(0,54):'Incluye paréntesis; los ángulos son radianes.',40,1073,19,this.error?'#ffb9a6':'#a6c6d0');
+      this.button('clear','Borrar todo',38,944,215,77);
+      this.button('apply','✓ REPRESENTAR',264,944,464,77,true);
+      this.text(this.error?this.error.slice(0,57):
+        'Gatillo para escribir · ABC para letras · ← para borrar',
+        40,1072,19,this.error?'#ffb9a6':'#a6c6d0');
     }
     this.dirty=false;
     const gl=this.gl;gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,this.texture);
@@ -245,21 +271,25 @@ export class XRPanel {
     if(this.page==='edit'){
       if(id==='back'){this.page='main';this.error='';}
       else if(id==='clear'){this.editValue='';this.error='';}
+      else if(id==='layout')this.keyLayout=this.keyLayout==='math'?'letters':'math';
+      else if(id==='current'){this.editValue=this.getState().expression;this.error='';}
       else if(id==='apply'){
         const error=this.onCommand('equation',this.editValue);
         if(!error){this.page='main';this.error='';}
         else this.error=error;
-      } else if(id.startsWith('key:')){
+      }else if(id.startsWith('key:')){
         const key=id.slice(4);
         if(key==='←')this.editValue=this.editValue.slice(0,-1);
-        else if(this.editValue.length<245)this.editValue+=key;
+        else if(this.editValue.length+key.length<=245)this.editValue+=key;
         this.error='';
       }
-    }else if(this.page==='scene'){
+    }else if(this.page==='scene'||this.page==='settings'){
       if(id==='back')this.page='main';
+      else if(id==='edit'){this.page='edit';this.editValue='';this.keyLayout='math';this.error='';}
       else this.onCommand(id);
     }else if(id==='scene'){this.page='scene';}
-    else if(id==='edit'){this.page='edit';this.editValue=this.getState().expression;this.error='';}
+    else if(id==='settings'){this.page='settings';}
+    else if(id==='edit'){this.page='edit';this.editValue='';this.keyLayout='math';this.error='';}
     else if(id.startsWith('preset:'))this.onCommand('equation',PRESETS[Number(id.split(':')[1])][1]);
     else this.onCommand(id);
     this.hoverId=null;this.dirty=true;
