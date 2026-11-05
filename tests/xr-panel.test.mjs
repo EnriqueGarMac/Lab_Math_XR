@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {PANEL_W,PANEL_H,SCREEN_W,SCREEN_H,clamp,panelPose,intersectPanel,rayFromMatrix,modelXRMatrix,quatMultiply,quatAxisAngle,quatInverse,relativeControllerRotation,menuPositionFromRay,translatedMenuCenter} from '../xr-panel.mjs';
+import {PANEL_W,PANEL_H,SCREEN_W,SCREEN_H,clamp,panelPose,intersectPanel,rayFromMatrix,modelXRMatrix,quatMultiply,quatAxisAngle,quatInverse,relativeControllerRotation,menuPositionFromRay,translatedMenuCenter,nextMeshResolution,XRPanel} from '../xr-panel.mjs';
 
 const identity=new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]);
 
@@ -89,4 +89,78 @@ test('menu drag translates relative to controller motion without changing orient
   assert.ok(Math.abs(result[0]-0)<1e-10);
   assert.ok(Math.abs(result[1]-1.7)<1e-10);
   assert.ok(Math.abs(result[2]+1.5)<1e-10);
+});
+
+
+test('mesh resolution advances in steps of five and respects rendering limits',()=>{
+  assert.equal(nextMeshResolution(55,5),60);
+  assert.equal(nextMeshResolution(55,-5),50);
+  assert.equal(nextMeshResolution(100,5),100);
+  assert.equal(nextMeshResolution(20,-5),20);
+  assert.equal(nextMeshResolution(55,0),55);
+});
+
+function makePanelStub(){
+  const events=[];
+  const p=Object.create(XRPanel.prototype);
+  p.page='main';p.editValue='';p.keyLayout='math';
+  p.error='';p.hoverId=null;p.dirty=false;
+  p.getState=()=>({expression:'x^2-y^2'});
+  p.onCommand=(cmd,arg)=>{events.push([cmd,arg]);return '';};
+  return {p,events};
+}
+test('custom equation editor is accessible directly and starts blank',()=>{
+  const {p}=makePanelStub();
+  p.activate('edit');
+  assert.equal(p.page,'edit');
+  assert.equal(p.editValue,'');
+  assert.equal(p.keyLayout,'math');
+  assert.equal(p.dirty,true);
+});
+test('immersive keyboard accepts a user-written equation and applies it',()=>{
+  const {p,events}=makePanelStub();
+  p.activate('edit');
+  for(const key of ['x','^','2','+','y'])p.activate('key:'+key);
+  assert.equal(p.editValue,'x^2+y');
+  p.activate('apply');
+  assert.deepEqual(events,[['equation','x^2+y']]);
+  assert.equal(p.page,'main');
+});
+test('editor can switch to letters, backspace, load current and clear',()=>{
+  const {p}=makePanelStub();
+  p.activate('edit');
+  p.activate('layout');
+  assert.equal(p.keyLayout,'letters');
+  p.activate('key:b');p.activate('key:c');p.activate('key:←');
+  assert.equal(p.editValue,'b');
+  p.activate('current');
+  assert.equal(p.editValue,'x^2-y^2');
+  p.activate('clear');
+  assert.equal(p.editValue,'');
+});
+test('invalid custom equation stays in editor and reports error',()=>{
+  const {p}=makePanelStub();
+  p.onCommand=()=> 'Faltan paréntesis';
+  p.activate('edit');
+  p.activate('key:sin(');
+  p.activate('apply');
+  assert.equal(p.page,'edit');
+  assert.equal(p.error,'Faltan paréntesis');
+});
+test('settings page retains controls and sends action to existing handler',()=>{
+  const {p,events}=makePanelStub();
+  p.activate('settings');
+  assert.equal(p.page,'settings');
+  p.activate('axes');
+  p.activate('palette');
+  p.activate('back');
+  assert.deepEqual(events,[['axes',undefined],['palette',undefined]]);
+  assert.equal(p.page,'main');
+});
+test('selecting mesh density invokes command without leaving immersive menu',()=>{
+  const {p,events}=makePanelStub();
+  p.activate('resolution:+');
+  p.activate('resolution:-');
+  assert.deepEqual(events,[['resolution:+',undefined],['resolution:-',undefined]]);
+  assert.equal(p.page,'main');
 });
