@@ -1,5 +1,5 @@
 import {parseSurfaceEquation} from './parser.mjs';
-import {XRPanel,clamp,rayFromMatrix,modelXRMatrix,quatMultiply,quatAxisAngle,quaternionFromPose,relativeControllerRotation} from './xr-panel.mjs';
+import {XRPanel,clamp,rayFromMatrix,modelXRMatrix,quatMultiply,quatAxisAngle,quaternionFromPose,relativeControllerRotation,menuPositionFromRay,translatedMenuCenter} from './xr-panel.mjs';
 import {XRPlanarShadow,planeFromHitMatrix,modelClearance} from './xr-spatial.mjs';
 
 const $=id=>document.getElementById(id);
@@ -432,7 +432,7 @@ function updateMenuDrag(frame){
   if(!xrMenuDrag||!xrPanel?.pose)return;
   const p=frame.getPose(xrMenuDrag.space,state.xrSpace)?.transform?.position;
   if(!p){xrMenuDrag=null;return;}
-  xrPanel.pose.center=xrMenuDrag.center.map((v,i)=>v+[p.x,p.y,p.z][i]-xrMenuDrag.origin[i]);
+  xrPanel.pose.center=translatedMenuCenter(xrMenuDrag.center,xrMenuDrag.origin,[p.x,p.y,p.z]);
 }
 function updateXRRotation(frame){
   if(!xrRotate||!xrTransform)return;
@@ -443,7 +443,7 @@ function updateXRRotation(frame){
 }
 function placeMenuAtRay(ray,viewerMatrix){
   if(!ray||!xrPanel||!viewerMatrix)return;
-  const point=ray.origin.map((v,i)=>v+ray.dir[i]*1.20);
+  const point=menuPositionFromRay(ray,1.20);
   xrPanel.placeAt(point,viewerMatrix);
 }
 function resetXRMenu(){
