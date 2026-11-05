@@ -618,7 +618,9 @@ async function enterXR(){
     await stopCamera();setMode('3d');
     if(gl.makeXRCompatible)await gl.makeXRCompatible();
     const layer=new XRWebGLLayer(session,gl,{alpha:true,antialias:true,depth:true});
-    session.updateRenderState({baseLayer:layer});
+    // Use a closer near clip plane so the user can inspect the mathematical
+    // surface from a few centimetres away. A moderate far plane helps depth precision.
+    session.updateRenderState({baseLayer:layer,depthNear:0.025,depthFar:30});
     const space=await session.requestReferenceSpace('local');
     state.xrSession=session;state.xrSpace=space;state.xrModel=null;
     xrPose=null;xrGrab=null;xrRotate=null;xrMenuDrag=null;xrMenuPlacing=false;
