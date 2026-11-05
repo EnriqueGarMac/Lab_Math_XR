@@ -1,5 +1,5 @@
 import {parseSurfaceEquation} from './parser.mjs';
-import {XRPanel,clamp,rayFromMatrix,modelXRMatrix} from './xr-panel.mjs';
+import {XRPanel,clamp,rayFromMatrix,modelXRMatrix,quatMultiply,quatAxisAngle,quaternionFromPose,relativeControllerRotation} from './xr-panel.mjs';
 import {XRPlanarShadow,planeFromHitMatrix,modelClearance} from './xr-spatial.mjs';
 
 const $=id=>document.getElementById(id);
@@ -216,14 +216,16 @@ $('save-image').addEventListener('click',()=>{
 
 // The 2D HTML sidebar is not rendered by immersive WebXR.
 // Quest gets a real, textured, in-world panel that controllers can aim at.
-let xrPanel=null, xrGrab=null, xrTransform=null, xrLaser=null, xrLastTime=0, xrPose=null;
+let xrPanel=null, xrGrab=null, xrRotate=null, xrMenuDrag=null, xrMenuPlacing=false,
+  xrMenuPlacementSource=null, xrMenuResetButtons=new Map(), xrTransform=null,
+  xrLaser=null, xrLastTime=0, xrPose=null;
 let xrSpatial=null, xrShadow=null, xrReticle=null, xrFrameHits=new Map();
 function placeXRModel(pose){
   const m=pose.transform.matrix;
   const forward=[-m[8],-m[9],-m[10]];
   xrTransform={
     position:[m[12]+forward[0]*1.55,m[13]+forward[1]*1.55-.35,m[14]+forward[2]*1.55],
-    yaw:0,pitch:0,scale:.48
+    yaw:0,pitch:0,rotation:[0,0,0,1],scale:.48
   };
   state.xrModel=modelXRMatrix(xrTransform);
 }
@@ -333,7 +335,7 @@ function placeOnRealSurface(hit){
   if(!hit||!xrTransform||!xrSpatial)return;
   const clearance=modelClearance(state.data,xrTransform.scale,state.height);
   xrTransform.position=hit.point.map((x,i)=>x+hit.normal[i]*clearance);
-  xrTransform.yaw=0;xrTransform.pitch=0;
+  xrTransform.yaw=0;xrTransform.pitch=0;xrTransform.rotation=[0,0,0,1];
   state.xrModel=modelXRMatrix(xrTransform);
   xrSpatial.plane={point:[...hit.point],normal:[...hit.normal]};
   xrSpatial.scanning=false;xrSpatial.preview=null;
@@ -341,6 +343,13 @@ function placeOnRealSurface(hit){
   xrPanel.dirty=true;
 }
 function menuCommand(cmd,arg){
+  if(cmd==='menu-place'){
+    xrMenuPlacing=!xrMenuPlacing;
+    if(!xrMenuPlacing)xrMenuPlacementSource=null;
+    if(xrPanel)xrPanel.dirty=true;
+    return;
+  }
+  if(cmd==='menu-reset'){resetXRMenu();return;}
   if(cmd==='equation'){
     const old=equation.value;equation.value=arg;
     submitExpression();
@@ -401,20 +410,81 @@ function menuCommand(cmd,arg){
     state.xrModel=modelXRMatrix(xrTransform);
   }
 }
+// Trigger: grab menu header for repositioning, or rotate the surface in 3D.
+function startMenuDrag(e){
+  const src=e.inputSource,space=src.gripSpace||src.targetRaySpace;
+  if(!xrPanel?.pose||!space)return;
+  const pose=e.frame.getPose(space,state.xrSpace);if(!pose)return;
+  const p=pose.transform.position;
+  xrMenuDrag={src,space,origin:[p.x,p.y,p.z],center:[...xrPanel.pose.center]};
+}
+function startRotation(e){
+  if(!xrTransform||xrGrab||xrRotate)return;
+  const src=e.inputSource,space=src.gripSpace||src.targetRaySpace;
+  const ray=xrRay(e.frame,src);
+  if(!isNearModel(ray)||!space)return;
+  const pose=e.frame.getPose(space,state.xrSpace);
+  const q=quaternionFromPose(pose);
+  if(!q)return;
+  xrRotate={src,space,startOrientation:q,startModel:[...(xrTransform.rotation||[0,0,0,1])]};
+}
+function updateMenuDrag(frame){
+  if(!xrMenuDrag||!xrPanel?.pose)return;
+  const p=frame.getPose(xrMenuDrag.space,state.xrSpace)?.transform?.position;
+  if(!p){xrMenuDrag=null;return;}
+  xrPanel.pose.center=xrMenuDrag.center.map((v,i)=>v+[p.x,p.y,p.z][i]-xrMenuDrag.origin[i]);
+}
+function updateXRRotation(frame){
+  if(!xrRotate||!xrTransform)return;
+  const pose=frame.getPose(xrRotate.space,state.xrSpace);
+  const now=quaternionFromPose(pose);
+  if(!now){xrRotate=null;return;}
+  xrTransform.rotation=relativeControllerRotation(xrRotate.startOrientation,now,xrRotate.startModel);
+}
+function placeMenuAtRay(ray,viewerMatrix){
+  if(!ray||!xrPanel||!viewerMatrix)return;
+  const point=ray.origin.map((v,i)=>v+ray.dir[i]*1.20);
+  xrPanel.placeAt(point,viewerMatrix);
+}
+function resetXRMenu(){
+  if(xrPanel&&xrPose){
+    xrMenuPlacing=false;xrMenuDrag=null;
+    xrPanel.setPose(xrPose.transform.matrix,true);
+    xrPanel.dirty=true;
+  }
+}
+function updateMenuPlacement(frame){
+  if(!xrMenuPlacing||!xrPose||!xrPanel)return;
+  const active=xrMenuPlacementSource&&frame.session.inputSources.includes(xrMenuPlacementSource)
+    ?xrMenuPlacementSource:frame.session.inputSources.find(s=>s.targetRaySpace);
+  const ray=active&&xrRay(frame,active);
+  if(ray)placeMenuAtRay(ray,xrPose.transform.matrix);
+}
+
 function xrSelectStart(e){
   if(!state.xrSession)return;
   const ray=xrRay(e.frame,e.inputSource);
+  if(xrMenuPlacing){
+    if(ray&&xrPose)placeMenuAtRay(ray,xrPose.transform.matrix);
+    xrMenuPlacing=false;xrMenuPlacementSource=null;
+    if(xrPanel)xrPanel.dirty=true;
+    return;
+  }
   const hit=ray&&xrPanel?.hit(ray);
   if(hit){
-    if(hit.id)xrPanel.activate(hit.id);
-    return; // no model drag while aiming at the menu
+    if(hit.id==='menu-handle'){startMenuDrag(e);return;}
+    if(hit.id){
+      if(hit.id==='menu-place')xrMenuPlacementSource=e.inputSource;
+      xrPanel.activate(hit.id);
+    }
+    return; // no surface manipulation while aiming at the menu
   }
   if(xrSpatial?.scanning){
     const detected=xrFrameHits.get(e.inputSource)??xrSpatial.preview;
     if(detected)placeOnRealSurface(detected);
     return; // never grab the virtual surface while placing on a real plane
   }
-  startGrab(e,true);
+  startRotation(e);
 }
 function xrGrabUpdate(frame){
   if(!xrGrab)return;
@@ -426,6 +496,9 @@ function xrGrabUpdate(frame){
 function xrControllerInputs(frame,t){
   if(!xrTransform||!xrPanel)return;
   xrGrabUpdate(frame);
+  updateXRRotation(frame);
+  updateMenuDrag(frame);
+  updateMenuPlacement(frame);
   const dt=clamp((t-(xrLastTime||t))/1000,0,.05);xrLastTime=t;
   const rays=[];let hovered=null;
   for(const src of frame.session.inputSources){
@@ -442,12 +515,16 @@ function xrControllerInputs(frame,t){
     if(!axes||axes.length<2)continue;
     const ax=axes.length>=4?axes[2]:axes[0],ay=axes.length>=4?axes[3]:axes[1];
     const x=Math.abs(ax)>.15?ax:0,y=Math.abs(ay)>.15?ay:0;
-    if(src.handedness==='left'){
-      xrTransform.yaw-=x*dt*1.65;
-      xrTransform.pitch=clamp(xrTransform.pitch+y*dt*1.5,-1.25,1.25);
+    if(src.handedness==='left'&&!xrRotate){
+      if(x)xrTransform.rotation=quatMultiply(quatAxisAngle([0,1,0],-x*dt*1.65),xrTransform.rotation);
+      if(y)xrTransform.rotation=quatMultiply(xrTransform.rotation,quatAxisAngle([1,0,0],y*dt*1.5));
     }else if(src.handedness==='right'){
       xrTransform.scale=clamp(xrTransform.scale*(1-y*dt*1.4),.16,1.35);
     }
+    // Quest A/X face button recentres the menu if it has been moved out of sight.
+    const pressed=!!src.gamepad?.buttons?.[4]?.pressed;
+    if(pressed&&!xrMenuResetButtons.get(src))resetXRMenu();
+    xrMenuResetButtons.set(src,pressed);
   }
   xrPanel.hover(hovered);
   if(!xrLaser){const b=gl.createBuffer();xrLaser={buffer:b,count:0};}
@@ -467,7 +544,8 @@ async function enterXR(){
     session.updateRenderState({baseLayer:layer});
     const space=await session.requestReferenceSpace('local');
     state.xrSession=session;state.xrSpace=space;state.xrModel=null;
-    xrPose=null;xrGrab=null;xrTransform=null;xrLastTime=0;
+    xrPose=null;xrGrab=null;xrRotate=null;xrMenuDrag=null;xrMenuPlacing=false;
+    xrMenuPlacementSource=null;xrMenuResetButtons.clear();xrTransform=null;xrLastTime=0;
     xrFrameHits.clear();await initXRSpatial(session);
     xrPanel=new XRPanel(gl,()=>({
       expression:state.compiled?.expression||equation.value,
@@ -479,11 +557,17 @@ async function enterXR(){
       opacity:xrSpatial?.opacity??.31
     }),menuCommand);
     session.addEventListener('selectstart',xrSelectStart);
-    session.addEventListener('selectend',e=>{if(xrGrab?.src===e.inputSource)xrGrab=null;});
+    session.addEventListener('selectend',e=>{
+      if(xrRotate?.src===e.inputSource)xrRotate=null;
+      if(xrMenuDrag?.src===e.inputSource)xrMenuDrag=null;
+      if(xrGrab?.src===e.inputSource)xrGrab=null;
+    });
     session.addEventListener('squeezestart',e=>startGrab(e,false));
     session.addEventListener('squeezeend',e=>{if(xrGrab?.src===e.inputSource)xrGrab=null;});
     session.addEventListener('end',()=>{
-      state.xrSession=null;state.xrSpace=null;state.xrModel=null;xrPose=null;xrGrab=null;xrTransform=null;xrLastTime=0;
+      state.xrSession=null;state.xrSpace=null;state.xrModel=null;
+      xrPose=null;xrGrab=null;xrRotate=null;xrMenuDrag=null;xrMenuPlacing=false;
+      xrMenuPlacementSource=null;xrMenuResetButtons.clear();xrTransform=null;xrLastTime=0;
       xrPanel?.dispose();xrPanel=null;
       xrShadow?.dispose();xrShadow=null;
       if(xrSpatial){
@@ -498,7 +582,7 @@ async function enterXR(){
       requestAnimationFrame(frame);
     });
     $('view-xr').classList.add('active');
-    $('stage-help').textContent='Dentro de Quest: apunta al menú y pulsa el gatillo. Agarre para mover.';
+    $('stage-help').textContent='Quest: gatillo sobre objeto rota · cabecera mueve menú · agarre desplaza.';
     session.requestAnimationFrame(xrFrame);
   }catch(e){
     if(session&&!state.xrSession)await session.end().catch(()=>{});
