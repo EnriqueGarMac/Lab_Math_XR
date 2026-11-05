@@ -12,7 +12,7 @@ export function planeFromHitMatrix(m,minUp=0.72) {
   // The Y axis of XRHitTestResult represents its estimated surface normal.
   // Reject walls and steep slopes when placing onto tables/floors.
   if(Math.abs(normal[1])<minUp)return null;
-  if(normal[1]<0)normal=normal.map(x=>-x);
+  if(normal[1]<0)normal=normal.map(x=>x===0?0:-x);
   return {point,normal};
 }
 export function modelClearance(data,scale,height) {
