@@ -223,25 +223,33 @@ export class XRPanel {
       });
       this.button('edit','✎ Nueva ecuación',39,1031,689,59,true);
         }else if(this.page==='scene'){
-      this.button('back','‹ Volver a funciones',38,119,349,66);
-      this.text('SUPERFICIES REALES',42,226,30,'#e4f8ff');
-      this.text('Detección mediante WebXR hit-test (si disponible)',42,267,19,'#96bfcb');
+      this.button('back','‹ Volver a funciones',38,115,363,64);
+      this.text('MESA, SUELO Y SOMBRAS',42,213,29,'#e4f8ff');
+      this.text('Ajuste del modelo según la superficie detectada',42,260,18,'#96bfcb');
       if(!s.hitAvailable){
-        this.text('Tu navegador no ofrece detección espacial.',42,333,23,'#ffbcae');
-        this.text('Las funciones 3D siguen disponibles.',42,374,21,'#bdd7df');
+        this.text('Detección espacial no disponible en este navegador.',42,340,21,'#ffbcae');
+        this.text('Puedes seguir moviendo y escalando la función.',42,400,20,'#bdd7df');
       }else{
-        this.button('place-mode',s.scanning?'Cancelar detección':'Detectar mesa o suelo',39,315,689,79,true);
-        this.text(s.scanning?(s.hitReady?'Mesa/suelo detectado: aprieta el gatillo':'Apunta al suelo o mesa con el mando')
-          :(s.placed?'Modelo colocado sobre un plano detectado':'Activa la detección para colocar la función'),
-          42,449,21,s.hitReady?'#71e9bf':'#d0dfe9');
+        this.button('place-mode',s.scanning&&!s.measuring?'Cancelar detección':'Detectar mesa / suelo',
+          39,301,689,72,true);
+        this.button('fit-toggle','Ajuste automático: '+(s.autoFit?'ACTIVADO':'DESACTIVADO'),
+          39,392,689,58);
+        this.button('measure-width',s.measuring?'Cancelar medición':'Medir borde corto (2 puntos)',
+          39,466,689,57);
+        this.text((s.measureProgress===1?'Primer punto marcado. Señala el segundo extremo.':
+          s.scanning?'Apunta y pulsa gatillo sobre mesa o suelo.':
+          s.fitStatus||'El modelo se ajustará si la mesa tiene contorno detectable.')
+          .slice(0,68),42,558,19,s.measureProgress===1?'#74e7be':'#c7dce6');
       }
-      this.button('shadow','Sombra: '+(s.shadowOn?'activada':'desactivada'),39,518,689,74);
-      this.text('Proyección virtual sobre el plano seleccionado',42,615,19,'#a2c9d4');
-      this.adj('Orientación de la luz',s.lightAngle+'°','light:-','light:+',647);
-      this.adj('Intensidad de la sombra',Math.round(s.opacity*100)+' %','opacity:-','opacity:+',761);
-      this.button('reset-plane','Quitar plano detectado',39,901,689,67);
-      this.text('No proyecta luz física ni oculta objetos reales.',42,1006,18,'#9fc0c9');
-      this.button('exit','Salir de realidad mixta',39,1031,689,59);
+      this.button('shadow','Sombra: '+(s.shadowOn?'activada':'desactivada'),
+        39,601,689,68);
+      this.adj('Dirección de luz',s.lightAngle+'°','light:-','light:+',688);
+      this.adj('Opacidad de sombra',Math.round(s.opacity*100)+' %',
+        'opacity:-','opacity:+',784);
+      this.button('reset-plane','Quitar plano detectado',39,901,689,64);
+      this.text('Escala uniforme · conserva las proporciones de la función',
+        42,991,18,'#9fc0c9');
+      this.button('exit','Salir de realidad mixta',39,1022,689,59);
     }else{
       this.button('back','‹ Volver',39,119,190,63);
       this.button('layout',this.keyLayout==='math'?'ABC':'123 / f(x)',244,119,173,63);
