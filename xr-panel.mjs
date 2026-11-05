@@ -16,6 +16,12 @@ export function panelPose(viewerMatrix) {
   const center=eye.map((v,i)=>v-right[i]*0.30-up[i]*0.02-back[i]*1.30);
   return {center,right,up,back};
 }
+export function menuPositionFromRay(ray,distance=1.2){
+  return ray.origin.map((v,i)=>v+ray.dir[i]*distance);
+}
+export function translatedMenuCenter(center,controllerStart,controllerNow){
+  return center.map((v,i)=>v+controllerNow[i]-controllerStart[i]);
+}
 export function intersectPanel(ray,pose,width=PANEL_W,height=PANEL_H) {
   if(!ray||!pose)return null;
   const diff=ray.origin.map((v,i)=>v-pose.center[i]);
@@ -130,7 +136,6 @@ export class XRPanel {
   placeAt(center,matrix){
     const view=panelPose(matrix);
     this.pose={...view,center:[...center]};
-    this.dirty=true;
   }
   moveBy(delta){if(this.pose)this.pose.center=this.pose.center.map((v,i)=>v+delta[i]);}
   hit(ray){
