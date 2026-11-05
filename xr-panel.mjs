@@ -13,7 +13,7 @@ export function rayFromMatrix(m){
 export function panelPose(viewerMatrix) {
   const m=viewerMatrix, right=[m[0],m[1],m[2]],up=[m[4],m[5],m[6]],back=[m[8],m[9],m[10]];
   const eye=[m[12],m[13],m[14]];
-  const center=eye.map((v,i)=>v-right[i]*0.78-up[i]*0.01-back[i]*1.15);
+  const center=eye.map((v,i)=>v-right[i]*0.30-up[i]*0.02-back[i]*1.30);
   return {center,right,up,back};
 }
 export function intersectPanel(ray,pose,width=PANEL_W,height=PANEL_H) {
@@ -28,8 +28,42 @@ export function intersectPanel(ray,pose,width=PANEL_W,height=PANEL_H) {
   if(Math.abs(px)>width/2||Math.abs(py)>height/2)return null;
   return {u:px/width+0.5,v:0.5-py/height,distance,x:(px/width+0.5)*SCREEN_W,y:(0.5-py/height)*SCREEN_H};
 }
+// Quaternions are [x,y,z,w]. Full controller rotation includes yaw, pitch and roll.
+export function normaliseQuat(q){
+  const len=Math.hypot(...q)||1;return q.map(v=>v/len);
+}
+export function quatMultiply(a,b){
+  const [x,y,z,w]=a,[u,v,t,r]=b;
+  return normaliseQuat([w*u+x*r+y*t-z*v,w*v-x*t+y*r+z*u,w*t+x*v-y*u+z*r,w*r-x*u-y*v-z*t]);
+}
+export function quatInverse(q){
+  const n=q.reduce((v,x)=>v+x*x,0)||1;
+  return [-q[0]/n,-q[1]/n,-q[2]/n,q[3]/n];
+}
+export function quatAxisAngle(axis,angle){
+  const n=Math.hypot(...axis)||1,s=Math.sin(angle/2)/n;
+  return [axis[0]*s,axis[1]*s,axis[2]*s,Math.cos(angle/2)];
+}
+export function quaternionFromPose(pose){
+  const q=pose?.transform?.orientation;
+  return q?[q.x,q.y,q.z,q.w]:null;
+}
+export function relativeControllerRotation(initial,current,modelAtStart){
+  return quatMultiply(quatMultiply(current,quatInverse(initial)),modelAtStart);
+}
 export function modelXRMatrix(model) {
-  const a=model.yaw||0,b=model.pitch||0,s=model.scale;
+  const s=model.scale;
+  if(model.rotation){
+    const [x,y,z,w]=normaliseQuat(model.rotation);
+    return new Float32Array([
+      s*(1-2*(y*y+z*z)),s*(2*(x*y+z*w)),s*(2*(x*z-y*w)),0,
+      s*(2*(x*y-z*w)),s*(1-2*(x*x+z*z)),s*(2*(y*z+x*w)),0,
+      s*(2*(x*z+y*w)),s*(2*(y*z-x*w)),s*(1-2*(x*x+y*y)),0,
+      model.position[0],model.position[1],model.position[2],1
+    ]);
+  }
+  // Legacy yaw/pitch representation remains available for existing callers.
+  const a=model.yaw||0,b=model.pitch||0;
   const ca=Math.cos(a),sa=Math.sin(a),cb=Math.cos(b),sb=Math.sin(b);
   return new Float32Array([
     ca*s,0,-sa*s,0,
@@ -91,7 +125,14 @@ export class XRPanel {
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
   }
-  setPose(matrix){this.pose=panelPose(matrix);}
+  // Anchor in room coordinates instead of following the viewer every frame.
+  setPose(matrix,force=false){if(!this.pose||force)this.pose=panelPose(matrix);}
+  placeAt(center,matrix){
+    const view=panelPose(matrix);
+    this.pose={...view,center:[...center]};
+    this.dirty=true;
+  }
+  moveBy(delta){if(this.pose)this.pose.center=this.pose.center.map((v,i)=>v+delta[i]);}
   hit(ray){
     const v=intersectPanel(ray,this.pose);
     if(!v)return null;
@@ -123,10 +164,13 @@ export class XRPanel {
     rounded(ctx,0,0,SCREEN_W,SCREEN_H,26,'rgba(8,25,40,0.96)','#4c7186');
     rounded(ctx,17,17,SCREEN_W-34,80,18,'#123748');
     this.text('∿  SURFACE LAB  ·  QUEST XR',38,56,29,'#79eff0');
+    this.text('ARRASTRAR ⇆',714,56,16,'#b3d8e6','right');
+    // The heading can be grabbed with the trigger; do not interpret it as a button click.
+    this.hits.push({id:'menu-handle',x:17,y:17,w:734,h:81});
     const s=this.getState();
     if(this.page==='main'){
       this.text('z = '+(s.expression||'').slice(0,36),42,132,24,'#f5fcff');
-      this.text('Selecciona con el gatillo; agarre para mover',42,176,18,'#a3c9d3');
+      this.text('Gatillo: rotar objeto · agarre: mover · cabecera: mover menú',42,176,17,'#a3c9d3');
       PRESETS.forEach(([name],i)=>{
         const col=i%2,row=Math.floor(i/2);
         this.button('preset:'+i,name,39+col*352,213+row*75,333,62);
@@ -146,7 +190,8 @@ export class XRPanel {
       this.button('style','Estilo: '+(s.style==='both'?'Malla + sólido':s.style==='wire'?'Malla':'Sólido'),39,865,335,61);
       this.button('palette','Cambiar color',395,865,333,61);
       this.button('edit','⌨ Editar ecuación',39,947,333,61,true);
-      this.button('recenter','Recolocar modelo',395,947,333,61);
+      this.button('recenter','Centrar modelo',395,947,158,61);
+      this.button('menu-place','Mover menú',565,947,163,61,true);
       this.button('scene','Mesa / suelo / sombra',39,1021,478,56,true);
       this.button('exit','Salir',530,1021,198,56);
       this.text('Stick izq.: girar  ·  Stick dcho.: tamaño',384,1098,17,'#95b1be','center');
