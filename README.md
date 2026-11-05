@@ -8,13 +8,13 @@ Aplicación estática en español para introducir ecuaciones explícitas `z=f(x,
 - Con webcam: sirve la raíz de este repositorio mediante `python -m http.server 8000`, abre http://localhost:8000 y concede el permiso de cámara.
 - Escribe, por ejemplo, `sin(x)*cos(y)` o `A*sin(k*x)*cos(y)`. La aplicación admite controles para parámetros libres.
 
-## Controles dentro de Meta Quest 3 (versión XR 1.2)
+## Controles dentro de Meta Quest 3 (versión XR 1.3)
 
-En el navegador Quest, pulsa **Quest RM**. El menú ya no depende de la barra lateral de HTML: aparece como **panel 3D a la izquierda de tu mirada** y se mantiene visible dentro de la experiencia inmersiva.
+En el navegador Quest, pulsa **Quest RM**. El menú ya no depende de la barra lateral de HTML: aparece como **panel 3D cerca del centro de tu mirada** y queda fijado en el espacio durante la sesión (ya no sigue automáticamente cada movimiento de cabeza).
 
-- **Gatillo:** apunta al panel con el rayo del mando y selecciona botones. Puedes cambiar ejemplos, dominio, altura, estilo, paleta, tamaño y parámetros.
+- **Gatillo sobre un botón del menú:** selección normal. **Gatillo mantenido sobre la cabecera del panel:** arrastra el menú a cualquier posición. También puedes pulsar **Mover menú**, apuntar a una posición nueva con el mando y confirmar con otro gatillazo.\n- **Gatillo mantenido sobre la superficie matemática:** rota la función en tres dimensiones al girar la muñeca y orientar el mando. Suelta el gatillo para fijar la nueva orientación.\n- **Botón A o X** del mando (según la mano y mapeo WebXR): recentra el menú frente a ti si lo has perdido de vista.
 - **Editar ecuación:** abre un teclado matemático inmersivo para escribir expresiones z=f(x,y), incluye sin, cos, sqrt, exp, operadores, x, y, A, k y una tecla para borrar. Pulsa **Representar** para aplicar.
-- **Agarre lateral (grip):** mantén pulsado y desplaza el mando para mover la superficie. También puedes usar el gatillo cuando apuntas directamente a la superficie.
+- **Agarre lateral (grip):** mantén pulsado y desplaza el mando para **trasladar** la superficie. La rotación se hace con el gatillo, no con el agarre.
 - **Joystick izquierdo:** rotar la superficie horizontal y verticalmente.
 - **Joystick derecho:** ampliar/reducir la superficie.
 - **Recolocar modelo:** devuelve el objeto frente a ti.
