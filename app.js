@@ -1,5 +1,5 @@
 import {parseSurfaceEquation} from './parser.mjs';
-import {XRPanel,clamp,rayFromMatrix,modelXRMatrix,quatMultiply,quatAxisAngle,quaternionFromPose,relativeControllerRotation,menuPositionFromRay,translatedMenuCenter} from './xr-panel.mjs';
+import {XRPanel,clamp,rayFromMatrix,modelXRMatrix,quatMultiply,quatAxisAngle,quaternionFromPose,relativeControllerRotation,menuPositionFromRay,translatedMenuCenter,nextMeshResolution} from './xr-panel.mjs';
 import {XRPlanarShadow,planeFromHitMatrix,modelClearance} from './xr-spatial.mjs';
 
 const $=id=>document.getElementById(id);
@@ -82,7 +82,8 @@ function regenerate() {
     if(vals[b]!==null&&vals[c]!==null&&vals[d]!==null)tri.push(b,c,d);
   }
   // Sparse overlay lines keep the mesh readable even for high-resolution surfaces.
-  const step=Math.max(1,Math.round(res/24));
+  // Draw every grid interval: the visible wire density now tracks the chosen resolution.
+  const step=1;
   function segment(a,b){if(vals[a]===null||vals[b]===null)return;const pa=p(a),pb=p(b);pa[1]+=.003;pb[1]+=.003;pushLine(lines,pa,pb,wireCol);}
   for(let i=0;i<=res;i+=step)for(let j=0;j<res;j++)segment(i*n+j,i*n+j+1);
   for(let j=0;j<=res;j+=step)for(let i=0;i<res;i++)segment(i*n+j,(i+1)*n+j);
@@ -392,6 +393,8 @@ function menuCommand(cmd,arg){
     $('style').value=state.style;return;
   }
   if(cmd==='palette'){state.palette=(state.palette+1)%4;$('palette').value=String(state.palette);return;}
+  if(cmd==='axes'){state.axes=!state.axes;$('axes').checked=state.axes;return;}
+  if(cmd==='grid'){state.grid=!state.grid;$('grid').checked=state.grid;return;}
   if(cmd.startsWith('param:')){
     const [,name,sign]=cmd.split(':');
     if(!Object.hasOwn(state.parameters,name))return;
@@ -400,6 +403,14 @@ function menuCommand(cmd,arg){
     return;
   }
   const [field,sign]=cmd.split(':');
+  if(field==='resolution'){
+    const next=nextMeshResolution(state.resolution,sign==='+'?5:-5);
+    if(next!==state.resolution){
+      $('resolution').value=String(next);
+      $('resolution').dispatchEvent(new Event('input'));
+    }
+    return;
+  }
   if(field==='domain'||field==='height'){
     const id=field,inc=field==='domain'?.5:.1;
     const min=field==='domain'?1:.2,max=field==='domain'?10:2.5;
@@ -551,6 +562,7 @@ async function enterXR(){
       expression:state.compiled?.expression||equation.value,
       params:state.parameters,domain:state.domain,height:state.height,
       scale:xrTransform?.scale??.48,style:state.style,palette:state.palette,
+      resolution:state.resolution,axes:state.axes,grid:state.grid,
       hitAvailable:!!xrSpatial?.supported,scanning:!!xrSpatial?.scanning,
       hitReady:!!xrSpatial?.preview,placed:!!xrSpatial?.plane,
       shadowOn:!!xrSpatial?.shadow,lightAngle:xrSpatial?.lightAngle??35,
