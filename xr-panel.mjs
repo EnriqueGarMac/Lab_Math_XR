@@ -147,8 +147,29 @@ export class XRPanel {
       this.button('palette','Cambiar color',395,865,333,61);
       this.button('edit','⌨ Editar ecuación',39,947,333,61,true);
       this.button('recenter','Recolocar modelo',395,947,333,61);
-      this.button('exit','Salir de RM',39,1021,689,56);
+      this.button('scene','Mesa / suelo / sombra',39,1021,478,56,true);
+      this.button('exit','Salir',530,1021,198,56);
       this.text('Stick izq.: girar  ·  Stick dcho.: tamaño',384,1098,17,'#95b1be','center');
+    }else if(this.page==='scene'){
+      this.button('back','‹ Volver a funciones',38,119,349,66);
+      this.text('SUPERFICIES REALES',42,226,30,'#e4f8ff');
+      this.text('Detección mediante WebXR hit-test (si disponible)',42,267,19,'#96bfcb');
+      if(!s.hitAvailable){
+        this.text('Tu navegador no ofrece detección espacial.',42,333,23,'#ffbcae');
+        this.text('Las funciones 3D siguen disponibles.',42,374,21,'#bdd7df');
+      }else{
+        this.button('place-mode',s.scanning?'Cancelar detección':'Detectar mesa o suelo',39,315,689,79,true);
+        this.text(s.scanning?(s.hitReady?'Mesa/suelo detectado: aprieta el gatillo':'Apunta al suelo o mesa con el mando')
+          :(s.placed?'Modelo colocado sobre un plano detectado':'Activa la detección para colocar la función'),
+          42,449,21,s.hitReady?'#71e9bf':'#d0dfe9');
+      }
+      this.button('shadow','Sombra: '+(s.shadowOn?'activada':'desactivada'),39,518,689,74);
+      this.text('Proyección virtual sobre el plano seleccionado',42,615,19,'#a2c9d4');
+      this.adj('Orientación de la luz',s.lightAngle+'°','light:-','light:+',647);
+      this.adj('Intensidad de la sombra',Math.round(s.opacity*100)+' %','opacity:-','opacity:+',761);
+      this.button('reset-plane','Quitar plano detectado',39,901,689,67);
+      this.text('No proyecta luz física ni oculta objetos reales.',42,1006,18,'#9fc0c9');
+      this.button('exit','Salir de realidad mixta',39,1031,689,59);
     }else{
       this.button('back','‹ Volver',40,118,196,63);
       this.text('EDITOR DE ECUACIONES',260,150,26,'#d2eaf2');
@@ -184,7 +205,11 @@ export class XRPanel {
         else if(this.editValue.length<245)this.editValue+=key;
         this.error='';
       }
-    }else if(id==='edit'){this.page='edit';this.editValue=this.getState().expression;this.error='';}
+    }else if(this.page==='scene'){
+      if(id==='back')this.page='main';
+      else this.onCommand(id);
+    }else if(id==='scene'){this.page='scene';}
+    else if(id==='edit'){this.page='edit';this.editValue=this.getState().expression;this.error='';}
     else if(id.startsWith('preset:'))this.onCommand('equation',PRESETS[Number(id.split(':')[1])][1]);
     else this.onCommand(id);
     this.hoverId=null;this.dirty=true;
