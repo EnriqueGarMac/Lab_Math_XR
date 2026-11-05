@@ -8,7 +8,7 @@ Aplicación estática en español para introducir ecuaciones explícitas `z=f(x,
 - Con webcam: sirve la raíz de este repositorio mediante `python -m http.server 8000`, abre http://localhost:8000 y concede el permiso de cámara.
 - Escribe, por ejemplo, `sin(x)*cos(y)` o `A*sin(k*x)*cos(y)`. La aplicación admite controles para parámetros libres.
 
-## Controles dentro de Meta Quest 3 (versión XR 1.1)
+## Controles dentro de Meta Quest 3 (versión XR 1.2)
 
 En el navegador Quest, pulsa **Quest RM**. El menú ya no depende de la barra lateral de HTML: aparece como **panel 3D a la izquierda de tu mirada** y se mantiene visible dentro de la experiencia inmersiva.
 
@@ -21,6 +21,23 @@ En el navegador Quest, pulsa **Quest RM**. El menú ya no depende de la barra la
 - **Salir de RM:** cierra la sesión y vuelve a la web de escritorio.
 
 Los controles se han implementado con las APIs WebXR de controladores y un panel texturizado en WebGL, sin depender de \`dom-overlay\`. **Aún falta verificar ergonomía, visibilidad y eventos de los mandos en unas Quest 3 reales.** La barra lateral HTML sigue disponible en el ordenador.
+
+## Mesa, suelo y sombras virtuales (versión XR 1.2)
+
+Esta versión utiliza **WebXR Hit Test**, si el navegador Quest lo ofrece. No necesita acceder ni enviar imágenes de las cámaras a un servidor.
+
+1. Abre la URL HTTPS desde **Meta Quest Browser** y pulsa **Quest RM**.
+2. En el menú inmersivo, pulsa **Mesa / suelo / sombra**.
+3. Selecciona **Detectar mesa o suelo** y apunta con uno de los mandos a una superficie horizontal del entorno. También puede funcionar apuntando con la mirada si el hit-test del mando no está disponible.
+4. Cuando aparezca el **anillo verde**, pulsa el **gatillo fuera del menú** para colocar la función sobre esa superficie.
+5. Activa/desactiva **Sombra**, gira la **dirección de luz** y ajusta la **intensidad**. Puedes seguir cambiando la ecuación, la escala y la altura como antes.
+6. Pulsa **Quitar plano detectado** para empezar de nuevo o **Recolocar modelo** para volver al modo flotante.
+
+La sombra se genera **proyectando la triangulación de la función**, según una luz direccional virtual, sobre el plano horizontal seleccionado. No modifica la iluminación de la mesa real, no reconstruye la malla completa de la habitación y no oculta objetos reales que se interpongan. El plano seleccionado permanece asociado a la referencia espacial local durante la sesión; **no es un anclaje persistente entre sesiones**.
+
+Si el menú indica que **hit-test no está disponible**, la realidad mixta y los mandos seguirán funcionando, pero no podrás detectar la mesa ni colocar allí una sombra mediante esta versión. Revisa la versión de Quest Browser, la configuración espacial del visor y los permisos solicitados al iniciar realidad mixta.
+
+La colocación y el sombreado se han validado mediante pruebas de geometría y el proceso de GitHub Actions, **no con acceso directo a unas Quest 3 físicas**. Las superficies se reconocen a través de la información espacial que proporciona el sistema, no por análisis propio de píxeles de cámara.
 
 ## Publicar desde un repositorio privado
 
