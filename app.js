@@ -370,7 +370,10 @@ function recordTableWidth(hit){
     xrPanel.dirty=true;return;
   }
   const fitted=fitScaleFromWidth(distance);
-  if(fitted===null)return;
+  if(fitted===null){
+    sp.fitStatus='Superficie demasiado estrecha para ajustar el modelo.';
+    sp.measurePoints=[];xrPanel.dirty=true;return;
+  }
   xrTransform.scale=fitted;
   // Keep the original support location. Measuring two points must NOT
   // silently move the model to the edge or midpoint between them.
@@ -477,7 +480,7 @@ function menuCommand(cmd,arg){
     $(id).value=String(Math.round(clamp(state[field]+(sign==='+'?inc:-inc),min,max)*10)/10);
     $(id).dispatchEvent(new Event('input'));
   } else if(field==='scale'&&xrTransform){
-    xrTransform.scale=clamp(Math.round((xrTransform.scale+(sign==='+'?.08:-.08))*100)/100,.16,1.35);
+    xrTransform.scale=clamp(Math.round((xrTransform.scale+(sign==='+'?.08:-.08))*100)/100,.08,1.35);
     state.xrModel=modelXRMatrix(xrTransform);
   }
 }
@@ -593,7 +596,7 @@ function xrControllerInputs(frame,t){
       if(x)xrTransform.rotation=quatMultiply(quatAxisAngle([0,1,0],-x*dt*1.65),xrTransform.rotation);
       if(y)xrTransform.rotation=quatMultiply(xrTransform.rotation,quatAxisAngle([1,0,0],y*dt*1.5));
     }else if(src.handedness==='right'){
-      xrTransform.scale=clamp(xrTransform.scale*(1-y*dt*1.4),.16,1.35);
+      xrTransform.scale=clamp(xrTransform.scale*(1-y*dt*1.4),.08,1.35);
     }
     // Quest A/X face button recentres the menu if it has been moved out of sight.
     const pressed=!!src.gamepad?.buttons?.[4]?.pressed;
