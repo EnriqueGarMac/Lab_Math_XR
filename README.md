@@ -8,14 +8,16 @@ Aplicación estática en español para introducir ecuaciones explícitas `z=f(x,
 - Con webcam: sirve la raíz de este repositorio mediante `python -m http.server 8000`, abre http://localhost:8000 y concede el permiso de cámara.
 - Escribe, por ejemplo, `sin(x)*cos(y)` o `A*sin(k*x)*cos(y)`. La aplicación admite controles para parámetros libres.
 
-## Controles dentro de Meta Quest 3 (versión XR 1.3)
+## Controles dentro de Meta Quest 3 (versión XR 1.4)
 
 En el navegador Quest, pulsa **Quest RM**. El menú ya no depende de la barra lateral de HTML: aparece como **panel 3D cerca del centro de tu mirada** y queda fijado en el espacio durante la sesión (ya no sigue automáticamente cada movimiento de cabeza).
 
 - **Gatillo sobre un botón del menú:** selección normal. **Gatillo mantenido sobre la cabecera del panel:** arrastra el menú a cualquier posición. También puedes pulsar **Mover menú**, apuntar a una posición nueva con el mando y confirmar con otro gatillazo. 
 - **Gatillo mantenido sobre la superficie matemática:** rota la función en tres dimensiones al girar la muñeca y orientar el mando. Suelta el gatillo para fijar la nueva orientación. 
 - **Botón A o X** del mando (según la mano y mapeo WebXR): recentra el menú frente a ti si lo has perdido de vista.
-- **Editar ecuación:** abre un teclado matemático inmersivo para escribir expresiones z=f(x,y), incluye sin, cos, sqrt, exp, operadores, x, y, A, k y una tecla para borrar. Pulsa **Representar** para aplicar.
+- **Escribir mi ecuación:** ahora aparece como botón grande al principio del menú inmersivo. Abre un editor inicialmente vacío para construir tu propia función `z=f(x,y)` con el gatillo. El teclado `123 / f(x)` contiene números, operadores, potencias, sin/cos/tan/sqrt/exp/log, x, y, pi y constantes. Pulsa `ABC` para introducir más letras o nombres de parámetros. `Cargar ecuación actual` recupera la función anterior para editarla; `Borrar todo` la limpia. Pulsa **REPRESENTAR** para aplicar sin salir de la realidad mixta.
+- **Densidad de malla:** usa los botones `−` y `+` en la pantalla principal, justo debajo de los ejemplos. Permiten seleccionar desde **20 × 20 hasta 100 × 100** divisiones de resolución, en incrementos de 5. La superficie y todas las líneas visibles de la malla se regeneran al instante.
+- **Aspecto y parámetros:** botón independiente que contiene los estilos (sólido, malla, ambos), paletas, ejes, plano de referencia y ajustes de parámetros como `A` y `k`.
 - **Agarre lateral (grip):** mantén pulsado y desplaza el mando para **trasladar** la superficie. La rotación se hace con el gatillo, no con el agarre.
 - **Joystick izquierdo:** rotar la superficie horizontal y verticalmente.
 - **Joystick derecho:** ampliar/reducir la superficie.
@@ -24,7 +26,7 @@ En el navegador Quest, pulsa **Quest RM**. El menú ya no depende de la barra la
 
 Los controles se han implementado con las APIs WebXR de controladores y un panel texturizado en WebGL, sin depender de `dom-overlay`. **Aún falta verificar ergonomía, visibilidad y eventos de los mandos en unas Quest 3 reales.** La barra lateral HTML sigue disponible en el ordenador.
 
-## Mesa, suelo y sombras virtuales (versión XR 1.3)
+## Mesa, suelo y sombras virtuales (versión XR 1.4)
 
 Esta versión utiliza **WebXR Hit Test**, si el navegador Quest lo ofrece. No necesita acceder ni enviar imágenes de las cámaras a un servidor.
 
@@ -56,7 +58,7 @@ El workflow `.github/workflows/pages.yml` permite publicación manual y automát
 
 - El modo webcam en PC no realiza seguimiento espacial: superpone el modelo 3D a la cámara.
 - La función Quest usa WebXR `immersive-ar`, sujeta a la compatibilidad del dispositivo y del navegador. Todavía no se ha verificado sobre unas Quest 3 físicas.
-- Hay un teclado matemático inmersivo en el panel WebXR. Es un editor básico y no sustituye a un teclado físico para expresiones largas.
+- La edición inmersiva utiliza un teclado matemático y alfabético de botones 3D seleccionables con el gatillo. Todavía no incorpora un teclado del sistema operativo Quest ni edición de texto libre con dictado.
 - Solo superficies explícitas `z=f(x,y)` en esta versión.
 
 ## Pruebas
