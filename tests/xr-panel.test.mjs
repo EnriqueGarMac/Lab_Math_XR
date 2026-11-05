@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {PANEL_W,PANEL_H,SCREEN_W,SCREEN_H,clamp,panelPose,intersectPanel,rayFromMatrix,modelXRMatrix,quatMultiply,quatAxisAngle,quatInverse,relativeControllerRotation} from '../xr-panel.mjs';
+import {PANEL_W,PANEL_H,SCREEN_W,SCREEN_H,clamp,panelPose,intersectPanel,rayFromMatrix,modelXRMatrix,quatMultiply,quatAxisAngle,quatInverse,relativeControllerRotation,menuPositionFromRay,translatedMenuCenter} from '../xr-panel.mjs';
 
 const identity=new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]);
 
@@ -77,4 +77,16 @@ test('menu anchor can be retained between head pose updates',()=>{
   assert.notDeepEqual(panelPose(moved).center,first);
   // The XRPanel.setPose() method now changes pose only on initialization or force.
   assert.equal(typeof first[0],'number');
+});
+
+test('reposition command places menu where the controller is pointing',()=>{
+  const ray={origin:[.3,1.2,0],dir:[0,0,-1]};
+  assert.deepEqual(menuPositionFromRay(ray,1.2),[.3,1.2,-1.2]);
+});
+test('menu drag translates relative to controller motion without changing orientation',()=>{
+  const start=[-.3,1.5,-1.2];
+  const result=translatedMenuCenter(start,[.1,1.2,-.6],[.4,1.4,-.9]);
+  assert.ok(Math.abs(result[0]-0)<1e-10);
+  assert.ok(Math.abs(result[1]-1.7)<1e-10);
+  assert.ok(Math.abs(result[2]+1.5)<1e-10);
 });
