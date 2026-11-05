@@ -68,3 +68,12 @@ test('manual sizing rejects different levels and unreasonable widths',()=>{
  assert.equal(measureShortEdge(a,{point:[10,.75,0],normal:[0,1,0]}),null);
  assert.equal(fitScaleFromWidth(-1),null);
 });
+
+test('a plane at tabletop height is not selected for a ray hit on the floor below',()=>{
+  const m=identity();
+  const fit=tableFromPlane(rectangle(1.2,.7),m,[0,-.7,0],'table');
+  assert.equal(fit,null);
+});
+test('too narrow a measured surface does not force a minimum model that overflows it',()=>{
+  assert.equal(fitScaleFromWidth(.25),null);
+});
