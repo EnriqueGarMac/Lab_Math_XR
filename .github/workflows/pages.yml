@@ -1,5 +1,7 @@
 name: Publicar Surface Lab en GitHub Pages (manual)
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
@@ -19,7 +21,7 @@ jobs:
       - name: Preparar web pública
         run: |
           mkdir -p _site
-          cp index.html app.js parser.mjs styles.css _site/
+          cp index.html app.js parser.mjs xr-panel.mjs styles.css _site/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
