@@ -1,5 +1,6 @@
 import {parseSurfaceEquation} from './parser.mjs';
 import {XRPanel,clamp,rayFromMatrix,modelXRMatrix} from './xr-panel.mjs';
+import {XRPlanarShadow,planeFromHitMatrix,modelClearance} from './xr-spatial.mjs';
 
 const $=id=>document.getElementById(id);
 const canvas=$('gl-canvas'), stage=$('stage-wrap'), video=$('camera-video');
@@ -216,6 +217,7 @@ $('save-image').addEventListener('click',()=>{
 // The 2D HTML sidebar is not rendered by immersive WebXR.
 // Quest gets a real, textured, in-world panel that controllers can aim at.
 let xrPanel=null, xrGrab=null, xrTransform=null, xrLaser=null, xrLastTime=0, xrPose=null;
+let xrSpatial=null, xrShadow=null, xrReticle=null, xrFrameHits=new Map();
 function placeXRModel(pose){
   const m=pose.transform.matrix;
   const forward=[-m[8],-m[9],-m[10]];
@@ -250,6 +252,94 @@ function startGrab(event,requireHit){
   xrGrab={src,space,origin:[p.transform.position.x,p.transform.position.y,p.transform.position.z],
     position:[...xrTransform.position]};
 }
+// Runtime detection: an immersive session is still usable when hit-test is denied.
+async function initXRSpatial(session){
+  const enabled=typeof session.requestHitTestSource==='function' &&
+    (!session.enabledFeatures||session.enabledFeatures.includes('hit-test'));
+  xrSpatial={supported:enabled,scanning:false,preview:null,plane:null,shadow:true,
+    lightAngle:35,opacity:0.31,viewerSource:null,controllerSources:new Map(),error:''};
+  xrShadow=new XRPlanarShadow(gl);
+  if(!enabled){xrSpatial.error='Hit-test no disponible en Quest Browser.';return;}
+  try{
+    const viewerSpace=await session.requestReferenceSpace('viewer');
+    const source=await session.requestHitTestSource({space:viewerSpace});
+    if(session!==state.xrSession){source.cancel();return;}
+    xrSpatial.viewerSource=source;
+  }catch(e){
+    // Controller target-ray hit testing can still work if viewer hit testing fails.
+    xrSpatial.error='Detección por mirada no disponible; prueba apuntar con el mando.';
+  }
+}
+function getSpatialHit(frame,source){
+  if(!source)return null;
+  try{
+    for(const result of frame.getHitTestResults(source)){
+      const pose=result.getPose(state.xrSpace);
+      const plane=pose&&planeFromHitMatrix(pose.transform.matrix);
+      if(plane)return plane;
+    }
+  }catch{/* Optional capability may be revoked; keep the 3D viewer functional. */}
+  return null;
+}
+function updateXRSpatial(frame){
+  const sp=xrSpatial;
+  if(!sp?.supported||!sp.scanning)return;
+  // Create a persistent hit-test source per controller. Controllers may connect later.
+  const inputs=Array.from(frame.session.inputSources);
+  for(const source of inputs){
+    if(!source.targetRaySpace||sp.controllerSources.has(source))continue;
+    sp.controllerSources.set(source,{pending:true});
+    frame.session.requestHitTestSource({space:source.targetRaySpace})
+      .then(hitSource=>{
+        if(xrSpatial!==sp||!state.xrSession){hitSource.cancel();return;}
+        sp.controllerSources.set(source,{hitSource});
+      }).catch(()=>sp.controllerSources.set(source,{failed:true}));
+  }
+  for(const [input,entry] of sp.controllerSources){
+    if(!inputs.includes(input)){
+      entry.hitSource?.cancel();sp.controllerSources.delete(input);
+    }
+  }
+  xrFrameHits.clear();
+  let preview=null;
+  for(const input of inputs){
+    const found=getSpatialHit(frame,sp.controllerSources.get(input)?.hitSource);
+    if(found){xrFrameHits.set(input,found);preview??=found;}
+  }
+  // Fallback to viewer ray when targetRaySpace is not supported.
+  preview??=getSpatialHit(frame,sp.viewerSource);
+  const before=Boolean(sp.preview);
+  sp.preview=preview;
+  if(before!==Boolean(preview)&&xrPanel)xrPanel.dirty=true;
+  updateXRReticle(preview);
+}
+function updateXRReticle(hit){
+  if(!hit){if(xrReticle)xrReticle.count=0;return;}
+  const n=hit.normal,p=hit.point,r=.105;
+  let u=[1-n[0]*n[0],-n[0]*n[1],-n[0]*n[2]];
+  const len=Math.hypot(...u)||1;u=u.map(v=>v/len);
+  const v=[n[1]*u[2]-n[2]*u[1],n[2]*u[0]-n[0]*u[2],n[0]*u[1]-n[1]*u[0]];
+  const xy=t=>p.map((x,i)=>x+n[i]*.012+r*(Math.cos(t)*u[i]+Math.sin(t)*v[i]));
+  const lines=[];
+  for(let i=0;i<32;i++)pushLine(lines,xy(i*Math.PI/16),xy((i+1)*Math.PI/16),[.28,1,.68]);
+  pushLine(lines,xy(0),xy(Math.PI),[.28,1,.68]);
+  pushLine(lines,xy(Math.PI/2),xy(Math.PI*1.5),[.28,1,.68]);
+  if(!xrReticle)xrReticle={buffer:gl.createBuffer(),count:0};
+  gl.bindBuffer(gl.ARRAY_BUFFER,xrReticle.buffer);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(lines),gl.DYNAMIC_DRAW);
+  xrReticle.count=lines.length/6;
+}
+function placeOnRealSurface(hit){
+  if(!hit||!xrTransform||!xrSpatial)return;
+  const clearance=modelClearance(state.data,xrTransform.scale,state.height);
+  xrTransform.position=hit.point.map((x,i)=>x+hit.normal[i]*clearance);
+  xrTransform.yaw=0;xrTransform.pitch=0;
+  state.xrModel=modelXRMatrix(xrTransform);
+  xrSpatial.plane={point:[...hit.point],normal:[...hit.normal]};
+  xrSpatial.scanning=false;xrSpatial.preview=null;
+  if(xrReticle)xrReticle.count=0;
+  xrPanel.dirty=true;
+}
 function menuCommand(cmd,arg){
   if(cmd==='equation'){
     const old=equation.value;equation.value=arg;
@@ -257,7 +347,36 @@ function menuCommand(cmd,arg){
     if(feedback.classList.contains('error')){const error=feedback.textContent;equation.value=old;return error;}
     return '';
   }
-  if(cmd==='recenter'){if(xrPose)placeXRModel(xrPose);return;}
+  if(cmd==='recenter'){
+    if(xrPose)placeXRModel(xrPose);
+    if(xrSpatial){xrSpatial.plane=null;xrSpatial.preview=null;xrSpatial.scanning=false;}
+    return;
+  }
+  if(cmd==='place-mode'){
+    if(!xrSpatial?.supported)return;
+    xrSpatial.scanning=!xrSpatial.scanning;
+    xrSpatial.preview=null;
+    if(xrReticle)xrReticle.count=0;
+    xrPanel.dirty=true;
+    return;
+  }
+  if(cmd==='reset-plane'){
+    if(xrSpatial){xrSpatial.plane=null;xrSpatial.scanning=false;xrSpatial.preview=null;}
+    if(xrReticle)xrReticle.count=0;
+    return;
+  }
+  if(cmd==='shadow'){
+    if(xrSpatial)xrSpatial.shadow=!xrSpatial.shadow;
+    return;
+  }
+  if(cmd.startsWith('light:')&&xrSpatial){
+    xrSpatial.lightAngle=((xrSpatial.lightAngle+(cmd.endsWith('+')?15:-15))%360+360)%360;
+    return;
+  }
+  if(cmd.startsWith('opacity:')&&xrSpatial){
+    xrSpatial.opacity=Math.round(clamp(xrSpatial.opacity+(cmd.endsWith('+')?.05:-.05),.05,.55)*100)/100;
+    return;
+  }
   if(cmd==='exit'){state.xrSession?.end();return;}
   if(cmd==='style'){
     const names=['both','solid','wire'];state.style=names[(names.indexOf(state.style)+1)%names.length];
@@ -289,6 +408,11 @@ function xrSelectStart(e){
   if(hit){
     if(hit.id)xrPanel.activate(hit.id);
     return; // no model drag while aiming at the menu
+  }
+  if(xrSpatial?.scanning){
+    const detected=xrFrameHits.get(e.inputSource)??xrSpatial.preview;
+    if(detected)placeOnRealSurface(detected);
+    return; // never grab the virtual surface while placing on a real plane
   }
   startGrab(e,true);
 }
@@ -336,7 +460,7 @@ async function enterXR(){
   if(!navigator.xr){showNotice('Abre la app en Meta Quest Browser mediante HTTPS para usar WebXR.');return;}
   let session;
   try{
-    session=await navigator.xr.requestSession('immersive-ar',{requiredFeatures:['local']});
+    session=await navigator.xr.requestSession('immersive-ar',{requiredFeatures:['local'],optionalFeatures:['hit-test']});
     await stopCamera();setMode('3d');
     if(gl.makeXRCompatible)await gl.makeXRCompatible();
     const layer=new XRWebGLLayer(session,gl,{alpha:true,antialias:true,depth:true});
@@ -344,10 +468,15 @@ async function enterXR(){
     const space=await session.requestReferenceSpace('local');
     state.xrSession=session;state.xrSpace=space;state.xrModel=null;
     xrPose=null;xrGrab=null;xrTransform=null;xrLastTime=0;
+    xrFrameHits.clear();await initXRSpatial(session);
     xrPanel=new XRPanel(gl,()=>({
       expression:state.compiled?.expression||equation.value,
       params:state.parameters,domain:state.domain,height:state.height,
-      scale:xrTransform?.scale??.48,style:state.style,palette:state.palette
+      scale:xrTransform?.scale??.48,style:state.style,palette:state.palette,
+      hitAvailable:!!xrSpatial?.supported,scanning:!!xrSpatial?.scanning,
+      hitReady:!!xrSpatial?.preview,placed:!!xrSpatial?.plane,
+      shadowOn:!!xrSpatial?.shadow,lightAngle:xrSpatial?.lightAngle??35,
+      opacity:xrSpatial?.opacity??.31
     }),menuCommand);
     session.addEventListener('selectstart',xrSelectStart);
     session.addEventListener('selectend',e=>{if(xrGrab?.src===e.inputSource)xrGrab=null;});
@@ -356,6 +485,13 @@ async function enterXR(){
     session.addEventListener('end',()=>{
       state.xrSession=null;state.xrSpace=null;state.xrModel=null;xrPose=null;xrGrab=null;xrTransform=null;xrLastTime=0;
       xrPanel?.dispose();xrPanel=null;
+      xrShadow?.dispose();xrShadow=null;
+      if(xrSpatial){
+        xrSpatial.viewerSource?.cancel();
+        for(const entry of xrSpatial.controllerSources.values())entry.hitSource?.cancel();
+      }
+      xrSpatial=null;xrFrameHits.clear();
+      if(xrReticle){gl.deleteBuffer(xrReticle.buffer);xrReticle=null;}
       if(xrLaser){gl.deleteBuffer(xrLaser.buffer);xrLaser=null;}
       $('view-xr').classList.remove('active');
       $('stage-help').textContent='Arrastra para girar · Rueda para acercar · Botón derecho para desplazar';
@@ -376,6 +512,7 @@ function xrFrame(t,frame){
   xrPose=pose;
   if(!xrTransform)placeXRModel(pose);
   xrPanel?.setPose(pose.transform.matrix);
+  updateXRSpatial(frame);
   xrControllerInputs(frame,t);
   const layer=session.renderState.baseLayer;
   gl.bindFramebuffer(gl.FRAMEBUFFER,layer.framebuffer);
@@ -386,9 +523,14 @@ function xrFrame(t,frame){
     gl.scissor(viewport.x,viewport.y,viewport.width,viewport.height);
     gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
     const viewProjection=mul(view.projectionMatrix,view.transform.inverse.matrix);
+    if(xrSpatial?.plane&&xrSpatial.shadow&&xrShadow){
+      xrShadow.draw(state.surface,viewProjection,state.xrModel,xrSpatial.plane,
+        xrSpatial.lightAngle,xrSpatial.opacity);
+    }
     drawScene(mul(viewProjection,state.xrModel));
     gl.disable(gl.DEPTH_TEST);
     if(xrLaser?.count)drawLines(xrLaser,viewProjection,.85);
+    if(xrSpatial?.scanning&&xrReticle?.count)drawLines(xrReticle,viewProjection,1);
     gl.enable(gl.DEPTH_TEST);
     xrPanel?.draw(viewProjection,mul);
   }
