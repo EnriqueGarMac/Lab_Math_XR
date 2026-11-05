@@ -11,7 +11,7 @@ test('panel remains to the left and in front of the viewer',()=>{
 });
 test('central controller ray hits panel and returns pixel coordinates',()=>{
   const p=panelPose(identity);
-  const ray={origin:[-.78,-.01,0],dir:[0,0,-1]};
+  const ray={origin:[-.30,-.02,0],dir:[0,0,-1]};
   const hit=intersectPanel(ray,p);
   assert.ok(hit);assert.ok(Math.abs(hit.u-.5)<1e-6);
   assert.ok(Math.abs(hit.v-.5)<1e-6);
@@ -21,7 +21,7 @@ test('central controller ray hits panel and returns pixel coordinates',()=>{
 test('ray pointing away or outside panel is not a menu click',()=>{
   const p=panelPose(identity);
   assert.equal(intersectPanel({origin:[-.78,-.01,0],dir:[0,0,1]},p),null);
-  assert.equal(intersectPanel({origin:[0,-.01,0],dir:[0,0,-1]},p),null);
+  assert.equal(intersectPanel({origin:[.9,-.02,0],dir:[0,0,-1]},p),null);
 });
 test('rayFromMatrix picks controller position and negative local Z',()=>{
   const m=identity.slice();m[12]=1.7;m[13]=2.2;m[14]=3.1;
