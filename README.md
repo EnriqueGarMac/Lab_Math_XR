@@ -8,9 +8,23 @@ Aplicación estática en español para introducir ecuaciones explícitas `z=f(x,
 - Con webcam: sirve la raíz de este repositorio mediante `python -m http.server 8000`, abre http://localhost:8000 y concede el permiso de cámara.
 - Escribe, por ejemplo, `sin(x)*cos(y)` o `A*sin(k*x)*cos(y)`. La aplicación admite controles para parámetros libres.
 
+## Controles dentro de Meta Quest 3 (versión XR 1.1)
+
+En el navegador Quest, pulsa **Quest RM**. El menú ya no depende de la barra lateral de HTML: aparece como **panel 3D a la izquierda de tu mirada** y se mantiene visible dentro de la experiencia inmersiva.
+
+- **Gatillo:** apunta al panel con el rayo del mando y selecciona botones. Puedes cambiar ejemplos, dominio, altura, estilo, paleta, tamaño y parámetros.
+- **Editar ecuación:** abre un teclado matemático inmersivo para escribir expresiones z=f(x,y), incluye sin, cos, sqrt, exp, operadores, x, y, A, k y una tecla para borrar. Pulsa **Representar** para aplicar.
+- **Agarre lateral (grip):** mantén pulsado y desplaza el mando para mover la superficie. También puedes usar el gatillo cuando apuntas directamente a la superficie.
+- **Joystick izquierdo:** rotar la superficie horizontal y verticalmente.
+- **Joystick derecho:** ampliar/reducir la superficie.
+- **Recolocar modelo:** devuelve el objeto frente a ti.
+- **Salir de RM:** cierra la sesión y vuelve a la web de escritorio.
+
+Los controles se han implementado con las APIs WebXR de controladores y un panel texturizado en WebGL, sin depender de \`dom-overlay\`. **Aún falta verificar ergonomía, visibilidad y eventos de los mandos en unas Quest 3 reales.** La barra lateral HTML sigue disponible en el ordenador.
+
 ## Publicar desde un repositorio privado
 
-El workflow `.github/workflows/pages.yml` está configurado **solo para ejecución manual**. Si decides publicar:
+El workflow `.github/workflows/pages.yml` permite publicación manual y automática al subir cambios a `main`, si GitHub Pages ya está habilitado. Para el primer despliegue:
 
 1. Comprueba que tu plan de GitHub permite GitHub Pages desde repositorios privados (GitHub Pro, Team o Enterprise).
 2. En el repositorio, entra en **Settings → Pages → Source: GitHub Actions**.
@@ -23,7 +37,7 @@ El workflow `.github/workflows/pages.yml` está configurado **solo para ejecuci�
 
 - El modo webcam en PC no realiza seguimiento espacial: superpone el modelo 3D a la cámara.
 - La función Quest usa WebXR `immersive-ar`, sujeta a la compatibilidad del dispositivo y del navegador. Todavía no se ha verificado sobre unas Quest 3 físicas.
-- El editor de ecuaciones está en la página 2D, no es un teclado espacial dentro de WebXR.
+- Hay un teclado matemático inmersivo en el panel WebXR. Es un editor básico y no sustituye a un teclado físico para expresiones largas.
 - Solo superficies explícitas `z=f(x,y)` en esta versión.
 
 ## Pruebas
