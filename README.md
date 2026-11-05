@@ -8,7 +8,7 @@ Aplicación estática en español para introducir ecuaciones explícitas `z=f(x,
 - Con webcam: sirve la raíz de este repositorio mediante `python -m http.server 8000`, abre http://localhost:8000 y concede el permiso de cámara.
 - Escribe, por ejemplo, `sin(x)*cos(y)` o `A*sin(k*x)*cos(y)`. La aplicación admite controles para parámetros libres.
 
-## Controles dentro de Meta Quest 3 (versión XR 1.4)
+## Controles dentro de Meta Quest 3 (versión XR 1.5)
 
 En el navegador Quest, pulsa **Quest RM**. El menú ya no depende de la barra lateral de HTML: aparece como **panel 3D cerca del centro de tu mirada** y queda fijado en el espacio durante la sesión (ya no sigue automáticamente cada movimiento de cabeza).
 
@@ -26,7 +26,7 @@ En el navegador Quest, pulsa **Quest RM**. El menú ya no depende de la barra la
 
 Los controles se han implementado con las APIs WebXR de controladores y un panel texturizado en WebGL, sin depender de `dom-overlay`. **Aún falta verificar ergonomía, visibilidad y eventos de los mandos en unas Quest 3 reales.** La barra lateral HTML sigue disponible en el ordenador.
 
-## Mesa, suelo y sombras virtuales (versión XR 1.4)
+## Mesa, suelo y sombras virtuales (versión XR 1.5)
 
 Esta versión utiliza **WebXR Hit Test**, si el navegador Quest lo ofrece. No necesita acceder ni enviar imágenes de las cámaras a un servidor.
 
@@ -36,6 +36,14 @@ Esta versión utiliza **WebXR Hit Test**, si el navegador Quest lo ofrece. No ne
 4. Cuando aparezca el **anillo verde**, pulsa el **gatillo fuera del menú** para colocar la función sobre esa superficie.
 5. Activa/desactiva **Sombra**, gira la **dirección de luz** y ajusta la **intensidad**. Puedes seguir cambiando la ecuación, la escala y la altura como antes.
 6. Pulsa **Quitar plano detectado** para empezar de nuevo o **Recolocar modelo** para volver al modo flotante.
+
+### Ajustar automáticamente el tamaño a una mesa
+
+Con **Quest RM → Mesa / suelo / sombra**, la opción **Ajuste automático** está activada por defecto. Al pulsar **Detectar mesa / suelo** y colocar la función sobre una mesa, la aplicación intenta obtener su polígono mediante la capacidad opcional de WebXR **plane-detection**. Si está disponible, estima la superficie y reduce o amplía uniformemente la función para dejar un margen hasta los bordes. El tamaño se aproxima al tablero detectado, no a la habitación, y conserva las proporciones de la función. No se pretende obtener una medición metrológica.
+
+**Limitación importante:** WebXR `hit-test` por sí solo da el punto y la normal de la superficie, **no su tamaño**. Si Quest Browser no proporciona polígonos de mesa, la aplicación no inventa dimensiones: muestra que el contorno no está disponible y conserva el tamaño. Usa entonces **Medir borde corto (2 puntos)**. Marca con el gatillo dos extremos del **lado más corto** de la mesa, aproximadamente a la misma altura. La función utilizará ese ancho para ajustar su tamaño. Conviene situar el modelo cerca del centro de la mesa antes de medir, porque esta acción no lo recoloca automáticamente.
+
+La detección de planos es opcional. La app sigue funcionando aunque el navegador no admita esta capacidad. La opción de medida manual requiere que `hit-test` esté disponible.
 
 La sombra se genera **proyectando la triangulación de la función**, según una luz direccional virtual, sobre el plano horizontal seleccionado. No modifica la iluminación de la mesa real, no reconstruye la malla completa de la habitación y no oculta objetos reales que se interpongan. El plano seleccionado permanece asociado a la referencia espacial local durante la sesión; **no es un anclaje persistente entre sesiones**.
 
