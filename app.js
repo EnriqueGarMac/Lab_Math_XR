@@ -772,7 +772,7 @@ async function prepareIOSAR(){
     // Large resolution meshes can exceed iOS memory limits.
     if(state.exportMesh.indices.length>60000)throw Error('Reduce la densidad de malla para AR móvil.');
     const {exportSurfaceUSDZ}=await import('./mobile-usdz.mjs');
-    const blob=await exportSurfaceUSDZ({...state.exportMesh,palette:state.palette});
+    const blob=await exportSurfaceUSDZ({...state.exportMesh,palette:state.palette},{includeShadow:$('mobile-ios-shadow').checked});
     if(mobileIOSURL)URL.revokeObjectURL(mobileIOSURL);
     mobileIOSURL=URL.createObjectURL(blob);
     anchor.href=mobileIOSURL;anchor.hidden=false;
@@ -780,6 +780,7 @@ async function prepareIOSAR(){
   }catch(e){status.textContent='No se pudo preparar AR en este dispositivo: '+e.message;}
   finally{preparingIOS=false;}
 }
+$('mobile-ios-shadow').addEventListener('change',()=>{if(!$('mobile-ios-actions').hidden)prepareIOSAR();});
 $('view-mobile-ar').addEventListener('click',async()=>{
   if(isIOSDevice())return prepareIOSAR();
   if(!navigator.xr)return showNotice('AR de entorno requiere Chrome para Android con ARCore y WebXR. En iPhone utiliza Safari y AR Quick Look.');
