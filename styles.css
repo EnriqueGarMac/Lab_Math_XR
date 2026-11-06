@@ -16,3 +16,13 @@
 .mobile-ios-actions img{max-width:100%;height:64px}
 .mobile-ios-actions button{padding:11px;border:1px solid #558c98;background:#214b61;border-radius:10px;color:white}
 @media(max-width:800px){.mode-buttons{flex-wrap:wrap}.mode-buttons .mode{min-height:40px}}
+
+
+/* Optional USDZ decal for iPhone when Quick Look does not show native shadows. */
+.mobile-ios-actions .ios-shadow-option{display:flex;align-items:center;gap:10px;
+  padding:10px 12px;border:1px solid #44707c;border-radius:10px;
+  font-size:13px;font-weight:650;color:#e8fcff;margin:0}
+.mobile-ios-actions .ios-shadow-option input{width:17px;height:17px;
+  accent-color:#73d8bf;flex:0 0 auto}
+.mobile-ios-actions .ios-shadow-hint{font-size:11px;line-height:1.4;
+  color:#b3cbd6;margin:0}
