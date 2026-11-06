@@ -15,6 +15,8 @@ Abre **[Surface Lab en el móvil](https://enriquegarmac.github.io/Lab_Math_XR/)*
 
 **Colores y sombras en AR móvil:** la superficie se exporta con una **textura de color** que conserva la paleta matemática, en lugar de depender de colores por vértice que algunos visores USDZ ignoran. En iPhone, **AR Quick Look puede generar una sombra automática, pero no siempre resulta visible**. Por eso el panel «AR móvil» incorpora ahora la opción **«Añadir sombra suave bajo el modelo»**, activada por defecto. Esta alternativa crea una proyección semitransparente integrada en el USDZ, junto a la superficie, que se mueve con ella. Es una sombra **aproximada y estática**, no responde a la luz ambiental real. Desmarca la opción si Quick Look ya muestra su propia sombra y ves un efecto duplicado. En **Android/WebXR**, el motor proyecta una sombra virtual a partir de la malla de la función sobre la superficie detectada. Ninguna de las dos opciones cambia la iluminación real.
 
+**Corrección iPhone (v1.9):** el exportador USDZ integra los cálculos de colores y sombras en un solo módulo JavaScript. Esto reduce los fallos de importación por versiones mezcladas de GitHub Pages y el módulo utiliza una URL versionada para evitar errores almacenados por Safari. Si aparece un error de carga, cierra la pestaña de Safari y vuelve a abrir la aplicación.
+
 En iOS, la conversión usa Three.js y su USDZExporter (cargados al preparar el modelo). La conversión no envía las ecuaciones ni las imágenes de cámara a un servidor. La compatibilidad final de Quick Look y la detección Android deben verificarse en teléfonos físicos.
 
 ## Abrir desde PC
@@ -23,7 +25,7 @@ En iOS, la conversión usa Three.js y su USDZExporter (cargados al preparar el m
 - Con webcam: sirve la raíz de este repositorio mediante `python -m http.server 8000`, abre http://localhost:8000 y concede el permiso de cámara.
 - Escribe, por ejemplo, `sin(x)*cos(y)` o `A*sin(k*x)*cos(y)`. La aplicación admite controles para parámetros libres.
 
-## Controles dentro de Meta Quest 3 (versión XR 1.8)
+## Controles dentro de Meta Quest 3 (versión XR 1.9)
 
 En el navegador Quest, pulsa **Quest RM**. El menú ya no depende de la barra lateral de HTML: aparece como **panel 3D cerca del centro de tu mirada** y queda fijado en el espacio durante la sesión (ya no sigue automáticamente cada movimiento de cabeza).
 
