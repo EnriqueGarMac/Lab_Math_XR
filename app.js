@@ -93,6 +93,7 @@ function regenerate() {
   const ibo=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,ibo);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(tri),gl.STATIC_DRAW);
   state.surface={buffer:vbo,indices:ibo,count:tri.length};state.wire=createBuffer(lines);
   state.data={min,max,valid,total:n*n,triangles:tri.length/3,amp};
+  state.exportMesh={positions:new Float32Array(pos),indices:new Uint16Array(tri),heat:new Float32Array(heat)};
   $('surface-stats').textContent=`${valid.toLocaleString('es-ES')} puntos válidos · ${Math.round(tri.length/3).toLocaleString('es-ES')} triángulos · z ∈ [${fmt(min)}, ${fmt(max)}]`;
 }
 function fmt(v){return Math.abs(v)>=1000?v.toExponential(2):Number(v.toFixed(3)).toLocaleString('es-ES');}
@@ -222,6 +223,7 @@ let xrPanel=null, xrGrab=null, xrRotate=null, xrMenuDrag=null, xrMenuPlacing=fal
   xrMenuPlacementSource=null, xrMenuResetButtons=new Map(), xrTransform=null,
   xrLaser=null, xrLastTime=0, xrPose=null;
 let xrSpatial=null, xrShadow=null, xrReticle=null, xrFrameHits=new Map();
+let mobileXR=false,mobilePlaceRequested=false,mobileIOSURL=null;
 function placeXRModel(pose){
   const m=pose.transform.matrix;
   const forward=[-m[8],-m[9],-m[10]];
@@ -610,11 +612,18 @@ function xrControllerInputs(frame,t){
   xrLaser.count=rays.length/6;
   state.xrModel=modelXRMatrix(xrTransform);
 }
-async function enterXR(){
+async function enterXR(mobile=false){
   if(!navigator.xr){showNotice('Abre la app en Meta Quest Browser mediante HTTPS para usar WebXR.');return;}
   let session;
   try{
-    session=await navigator.xr.requestSession('immersive-ar',{requiredFeatures:['local'],optionalFeatures:['hit-test','plane-detection']});
+    const overlay=$('mobile-ar-overlay');
+    if(mobile)overlay.hidden=false;
+    const options=mobile
+      ?{requiredFeatures:['local','dom-overlay'],
+        optionalFeatures:['hit-test','plane-detection'],domOverlay:{root:overlay}}
+      :{requiredFeatures:['local'],optionalFeatures:['hit-test','plane-detection']};
+    session=await navigator.xr.requestSession('immersive-ar',options);
+    mobileXR=mobile;
     await stopCamera();setMode('3d');
     if(gl.makeXRCompatible)await gl.makeXRCompatible();
     const layer=new XRWebGLLayer(session,gl,{alpha:true,antialias:true,depth:true});
@@ -626,7 +635,8 @@ async function enterXR(){
     xrPose=null;xrGrab=null;xrRotate=null;xrMenuDrag=null;xrMenuPlacing=false;
     xrMenuPlacementSource=null;xrMenuResetButtons.clear();xrTransform=null;xrLastTime=0;
     xrFrameHits.clear();await initXRSpatial(session);
-    xrPanel=new XRPanel(gl,()=>({
+    if(mobile&&xrSpatial?.supported)xrSpatial.scanning=true;
+    xrPanel=mobile?null:new XRPanel(gl,()=>({
       expression:state.compiled?.expression||equation.value,
       params:state.parameters,domain:state.domain,height:state.height,
       scale:xrTransform?.scale??.48,style:state.style,palette:state.palette,
@@ -657,18 +667,28 @@ async function enterXR(){
         for(const entry of xrSpatial.controllerSources.values())entry.hitSource?.cancel();
       }
       xrSpatial=null;xrFrameHits.clear();
+      mobileXR=false;mobilePlaceRequested=false;$('mobile-ar-overlay').hidden=true;
       if(xrReticle){gl.deleteBuffer(xrReticle.buffer);xrReticle=null;}
       if(xrLaser){gl.deleteBuffer(xrLaser.buffer);xrLaser=null;}
-      $('view-xr').classList.remove('active');
+      $('view-xr').classList.remove('active');$('view-mobile-ar').classList.remove('active');
       $('stage-help').textContent='Arrastra para girar · Rueda para acercar · Botón derecho para desplazar';
       requestAnimationFrame(frame);
     });
-    $('view-xr').classList.add('active');
-    $('stage-help').textContent='Quest: gatillo sobre objeto rota · cabecera mueve menú · agarre desplaza.';
+    if(mobile){
+      $('mobile-ar-status').textContent=xrSpatial?.supported?
+        'Mira una mesa o suelo. La cruz señala dónde se colocará.':
+        'Este móvil no permite detectar planos; la figura aparece delante de ti.';
+      $('mobile-ar-place').disabled=!xrSpatial?.supported;
+      $('view-mobile-ar').classList.add('active');
+    }else{
+      $('view-xr').classList.add('active');
+      $('stage-help').textContent='Quest: gatillo sobre objeto rota · cabecera mueve menú · agarre desplaza.';
+    }
     session.requestAnimationFrame(xrFrame);
   }catch(e){
     if(session&&!state.xrSession)await session.end().catch(()=>{});
-    showNotice('No se pudo iniciar realidad mixta: '+e.message);
+    mobileXR=false;mobilePlaceRequested=false;$('mobile-ar-overlay').hidden=true;
+    showNotice('No se pudo iniciar AR: '+e.message);
   }
 }
 function xrFrame(t,frame){
@@ -679,6 +699,20 @@ function xrFrame(t,frame){
   if(!xrTransform)placeXRModel(pose);
   xrPanel?.setPose(pose.transform.matrix);
   updateXRSpatial(frame);
+  if(mobileXR&&mobilePlaceRequested){
+    mobilePlaceRequested=false;
+    if(xrSpatial?.preview)placeOnRealSurface(xrSpatial.preview,frame);
+  }
+  if(mobileXR&&xrSpatial){
+    const message=xrSpatial.scanning?
+      (xrSpatial.preview?'Superficie detectada · pulsa «Colocar aquí».':
+        'Apunta hacia una mesa o suelo para detectarlo.') :
+      (xrSpatial.plane?'Modelo colocado. Puedes cambiar su tamaño.':
+        'El modelo está frente a ti, sin plano detectado.');
+    const field=$('mobile-ar-status');
+    if(field.textContent!==message)field.textContent=message;
+    $('mobile-ar-place').disabled=!xrSpatial.preview;
+  }
   xrControllerInputs(frame,t);
   const layer=session.renderState.baseLayer;
   gl.bindFramebuffer(gl.FRAMEBUFFER,layer.framebuffer);
@@ -702,7 +736,59 @@ function xrFrame(t,frame){
   }
   gl.disable(gl.SCISSOR_TEST);
 }
-$('view-xr').addEventListener('click',()=>{if(state.xrSession)state.xrSession.end();else enterXR();});
+$('view-xr').addEventListener('click',()=>{if(state.xrSession)state.xrSession.end();else enterXR(false);});
+$('mobile-ar-overlay').addEventListener('beforexrselect',e=>e.preventDefault());
+$('mobile-ar-place').addEventListener('click',()=>{mobilePlaceRequested=true;});
+$('mobile-ar-redetect').addEventListener('click',()=>{
+  if(xrSpatial){xrSpatial.scanning=true;xrSpatial.plane=null;xrSpatial.preview=null;}
+});
+function changeMobileScale(delta){
+  if(!xrTransform)return;
+  xrTransform.scale=clamp(Math.round((xrTransform.scale+delta)*100)/100,.08,1.35);
+  if(xrSpatial?.plane){
+    const plane=xrSpatial.plane,c=modelClearance(state.data,xrTransform.scale,state.height);
+    xrTransform.position=plane.point.map((v,i)=>v+plane.normal[i]*c);
+  }
+  state.xrModel=modelXRMatrix(xrTransform);
+}
+$('mobile-ar-smaller').addEventListener('click',()=>changeMobileScale(-.08));
+$('mobile-ar-larger').addEventListener('click',()=>changeMobileScale(.08));
+$('mobile-ar-exit').addEventListener('click',()=>state.xrSession?.end());
+function isIOSDevice(){
+  return /iPhone|iPad|iPod/.test(navigator.userAgent)||
+    (navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+}
+$('mobile-ios-close').addEventListener('click',()=>{$('mobile-ios-actions').hidden=true;});
+let preparingIOS=false;
+async function prepareIOSAR(){
+  if(preparingIOS)return;
+  preparingIOS=true;
+  const panel=$('mobile-ios-actions'),status=$('mobile-ios-status'),
+    anchor=$('mobile-ios-open');
+  panel.hidden=false;anchor.hidden=true;
+  status.textContent='Preparando la superficie 3D para AR Quick Look…';
+  try{
+    if(!state.exportMesh?.indices?.length)throw Error('Primero genera una superficie válida.');
+    // Large resolution meshes can exceed iOS memory limits.
+    if(state.exportMesh.indices.length>60000)throw Error('Reduce la densidad de malla para AR móvil.');
+    const {exportSurfaceUSDZ}=await import('./mobile-usdz.mjs');
+    const blob=await exportSurfaceUSDZ({...state.exportMesh,palette:state.palette});
+    if(mobileIOSURL)URL.revokeObjectURL(mobileIOSURL);
+    mobileIOSURL=URL.createObjectURL(blob);
+    anchor.href=mobileIOSURL;anchor.hidden=false;
+    status.textContent='Modelo preparado. Pulsa «Abrir en AR Quick Look».';
+  }catch(e){status.textContent='No se pudo preparar AR en este dispositivo: '+e.message;}
+  finally{preparingIOS=false;}
+}
+$('view-mobile-ar').addEventListener('click',async()=>{
+  if(isIOSDevice())return prepareIOSAR();
+  if(!navigator.xr)return showNotice('AR de entorno requiere Chrome para Android con ARCore y WebXR. En iPhone utiliza Safari y AR Quick Look.');
+  try{
+    if(!await navigator.xr.isSessionSupported('immersive-ar'))throw Error('Este Android no admite WebXR AR. Prueba Chrome con Servicios de Google Play para RA.');
+    if(state.xrSession)await state.xrSession.end();
+    else await enterXR(true);
+  }catch(e){showNotice(e.message);}
+});
 async function checkXR(){const text=$('device-status'),btn=$('view-xr');
   if(!navigator.xr){text.textContent='PC: vista 3D y webcam disponibles · WebXR no detectado';btn.title='Abre esta página en Quest Browser con HTTPS';return;}
   try{const ok=await navigator.xr.isSessionSupported('immersive-ar');text.textContent=ok?'WebXR immersive-ar disponible':'WebXR presente · immersive-ar no disponible en este navegador';
