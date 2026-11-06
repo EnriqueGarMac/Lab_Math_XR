@@ -790,7 +790,7 @@ $('view-mobile-ar').addEventListener('click',async()=>{
   }catch(e){showNotice(e.message);}
 });
 async function checkXR(){const text=$('device-status'),btn=$('view-xr');
-  if(!navigator.xr){text.textContent='PC: vista 3D y webcam disponibles · WebXR no detectado';btn.title='Abre esta página en Quest Browser con HTTPS';return;}
+  if(!navigator.xr){text.textContent=isIOSDevice()?'iPhone/iPad: pulsa «AR móvil» para Quick Look':'Vista 3D disponible · AR móvil requiere dispositivo compatible';btn.title='Abre esta página en Quest Browser con HTTPS';return;}
   try{const ok=await navigator.xr.isSessionSupported('immersive-ar');text.textContent=ok?'WebXR immersive-ar disponible':'WebXR presente · immersive-ar no disponible en este navegador';
     if(!ok)btn.title='Este navegador no admite immersive-ar (prueba con Quest Browser)';}
   catch{text.textContent='No se pudo comprobar WebXR';}
