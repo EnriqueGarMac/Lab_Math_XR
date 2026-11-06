@@ -1,3 +1,7 @@
+🌐 **[Abrir Lab Math XR — aplicación web](https://enriquegarmac.github.io/Lab_Math_XR/)**
+
+> Acceso directo desde el navegador, también desde Meta Quest 3. Sin instalar nada.
+
 # Surface Lab — superficies matemáticas en WebGL y Meta Quest 3
 
 Aplicación estática en español para introducir ecuaciones explícitas `z=f(x,y)`, generar superficies 3D, usar cámara/webcam en PC y probar realidad mixta WebXR desde Meta Quest 3. Incluye un intérprete matemático propio sin `eval()`.
