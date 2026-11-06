@@ -771,13 +771,19 @@ async function prepareIOSAR(){
     if(!state.exportMesh?.indices?.length)throw Error('Primero genera una superficie válida.');
     // Large resolution meshes can exceed iOS memory limits.
     if(state.exportMesh.indices.length>60000)throw Error('Reduce la densidad de malla para AR móvil.');
-    const {exportSurfaceUSDZ}=await import('./mobile-usdz.mjs');
+    const {exportSurfaceUSDZ}=await import('./mobile-usdz.mjs?v=1.9');
     const blob=await exportSurfaceUSDZ({...state.exportMesh,palette:state.palette},{includeShadow:$('mobile-ios-shadow').checked});
     if(mobileIOSURL)URL.revokeObjectURL(mobileIOSURL);
     mobileIOSURL=URL.createObjectURL(blob);
     anchor.href=mobileIOSURL;anchor.hidden=false;
     status.textContent='Modelo preparado. Pulsa «Abrir en AR Quick Look».';
-  }catch(e){status.textContent='No se pudo preparar AR en este dispositivo: '+e.message;}
+  }catch(e){
+    const message=String(e?.message||e);
+    status.textContent=/importing a module|failed to fetch|module script/i.test(message)
+      ?'No se pudo cargar el conversor AR. Cierra esta pestaña de Safari y abre de nuevo la página para obtener la versión actualizada.'
+      :'No se pudo preparar AR: '+message;
+    console.error('Surface Lab iPhone USDZ export:',e);
+  }
   finally{preparingIOS=false;}
 }
 $('mobile-ios-shadow').addEventListener('change',()=>{if(!$('mobile-ios-actions').hidden)prepareIOSAR();});
