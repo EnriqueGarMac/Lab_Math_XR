@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import {USDZExporter} from 'three/addons/exporters/USDZExporter.js';
 import {palettePixels} from './mobile-colors.mjs';
+import {createBakedShadow} from './mobile-shadow.mjs';
 
 // Quick Look has inconsistent support for imported vertex colours. Bake the
 // same continuous heat palette into a tiny PNG texture using vertex UVs.
@@ -53,8 +54,9 @@ export function surfaceToThreeScene({positions,indices,heat,palette=0}){
   const scene=new THREE.Scene();scene.add(model);
   return scene;
 }
-export async function exportSurfaceUSDZ(mesh){
+export async function exportSurfaceUSDZ(mesh,options={}){
   const scene=surfaceToThreeScene(mesh);
+  if(options.includeShadow!==false)createBakedShadow(scene);
   try{
     const buffer=await new USDZExporter().parseAsync(scene,{
       quickLookCompatible:true,
