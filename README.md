@@ -6,13 +6,22 @@
 
 Aplicación estática en español para introducir ecuaciones explícitas `z=f(x,y)`, generar superficies 3D, usar cámara/webcam en PC y probar realidad mixta WebXR desde Meta Quest 3. Incluye un intérprete matemático propio sin `eval()`.
 
+## Ver la función en realidad aumentada con el móvil
+
+Abre **[Surface Lab en el móvil](https://enriquegarmac.github.io/Lab_Math_XR/)** y pulsa **AR móvil**, junto a «Vista 3D» y «Quest RM». No requiere instalar una aplicación propia.
+
+- **Android + Chrome compatible con ARCore/WebXR:** se abre la cámara en una sesión AR real. Apunta al suelo o a una mesa y pulsa **Colocar aquí** para situar la superficie. Utiliza los controles táctiles para cambiar su tamaño, volver a buscar una superficie y salir. La detección depende de WebXR hit-test y de los servicios AR del teléfono; si no están disponibles, la página lo indicará.
+- **iPhone / iPad + Safari:** se genera localmente una copia USDZ de la **ecuación, geometría y paleta actuales**. Cuando aparezca **Abrir en AR Quick Look**, púlsalo para colocar la figura en tu entorno y moverla o escalarla con gestos. Esta vista es una **instantánea** y no incluye edición de ecuaciones dentro de Quick Look. Para cambiar la ecuación, vuelve a la web, modifica la función y pulsa de nuevo **AR móvil**.
+
+En iOS, la conversión usa Three.js y su USDZExporter (cargados al preparar el modelo). La conversión no envía las ecuaciones ni las imágenes de cámara a un servidor. La compatibilidad final de Quick Look y la detección Android deben verificarse en teléfonos físicos.
+
 ## Abrir desde PC
 
 - Sin instalaciones: abre `offline/SurfaceLab_PC.html` en Chrome o Edge.
 - Con webcam: sirve la raíz de este repositorio mediante `python -m http.server 8000`, abre http://localhost:8000 y concede el permiso de cámara.
 - Escribe, por ejemplo, `sin(x)*cos(y)` o `A*sin(k*x)*cos(y)`. La aplicación admite controles para parámetros libres.
 
-## Controles dentro de Meta Quest 3 (versión XR 1.5)
+## Controles dentro de Meta Quest 3 (versión XR 1.6)
 
 En el navegador Quest, pulsa **Quest RM**. El menú ya no depende de la barra lateral de HTML: aparece como **panel 3D cerca del centro de tu mirada** y queda fijado en el espacio durante la sesión (ya no sigue automáticamente cada movimiento de cabeza).
 
