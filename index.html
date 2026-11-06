@@ -6,6 +6,12 @@
   <meta name="theme-color" content="#0a121c" />
   <title>Surface Lab · Superficies en realidad mixta</title>
   <link rel="stylesheet" href="styles.css" />
+  <script type="importmap">
+  {"imports":{
+    "three":"https://cdn.jsdelivr.net/npm/three@0.181.2/build/three.module.js",
+    "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.181.2/examples/jsm/"
+  }}
+  </script>
 </head>
 <body>
   <div class="app-shell">
@@ -57,7 +63,8 @@
         <div class="stage-top"><div class="scene-title"><span class="live-dot"></span><span id="scene-name">SUPERFICIE MATEMÁTICA</span></div><div class="scene-chips"><span class="chip">X</span><span class="chip">Y</span><span class="chip">Z</span></div></div>
         <div class="stage-help" id="stage-help">Arrastra para girar · Rueda para acercar · Botón derecho para desplazar</div>
         <div class="stage-bottom">
-          <div class="mode-buttons"><button class="mode active" id="view-3d" type="button"><span>◫</span> Vista 3D</button><button class="mode" id="view-camera" type="button"><span>◎</span> Webcam + 3D</button><button class="mode xr" id="view-xr" type="button" title="Requiere navegador Quest compatible y HTTPS"><span>◈</span> Quest RM</button></div>
+          <div class="mode-buttons"><button class="mode active" id="view-3d" type="button"><span>◫</span> Vista 3D</button><button class="mode" id="view-camera" type="button"><span>◎</span> Webcam + 3D</button><button class="mode xr" id="view-xr" type="button" title="Requiere Meta Quest Browser"><span>◈</span> Quest RM</button>
+          <button class="mode xr" id="view-mobile-ar" type="button" title="Android: WebXR. iPhone: AR Quick Look."><span>▣</span> AR móvil</button></div>
           <div class="stage-actions"><button type="button" id="reset-view" title="Restablecer vista" aria-label="Restablecer vista">⟲</button><button type="button" id="save-image" title="Guardar captura PNG" aria-label="Guardar captura PNG">⇩</button></div>
         </div>
         <div class="camera-badge" id="camera-badge" hidden>● CÁMARA ACTIVA · SUPERPOSICIÓN SIN ANCLAJE</div>
@@ -65,6 +72,27 @@
       </div>
       <footer class="statusbar"><div id="surface-stats">—</div><div id="device-status">Comprobando WebXR…</div></footer>
     </main>
+  </div>
+  <div id="mobile-ar-overlay" class="mobile-ar-overlay" hidden>
+    <div class="mobile-ar-crosshair" aria-hidden="true">＋</div>
+    <div class="mobile-ar-toolbar">
+      <strong>Surface Lab · AR móvil</strong>
+      <span id="mobile-ar-status" aria-live="polite">Apunta a una mesa o al suelo.</span>
+      <div class="mobile-ar-actions">
+        <button type="button" id="mobile-ar-place">Colocar aquí</button>
+        <button type="button" id="mobile-ar-redetect">Buscar superficie</button>
+        <button type="button" id="mobile-ar-smaller">− Tamaño</button>
+        <button type="button" id="mobile-ar-larger">+ Tamaño</button>
+        <button type="button" id="mobile-ar-exit">Salir de AR</button>
+      </div>
+    </div>
+  </div>
+  <div id="mobile-ios-actions" class="mobile-ios-actions" hidden>
+    <strong>AR móvil en iPhone / iPad</strong>
+    <p>Prepara la función actual y ábrela en AR Quick Look. Podrás colocarla, girarla y escalarla con los dedos.</p>
+    <a id="mobile-ios-open" rel="ar" hidden><img alt="Colocar la función en realidad aumentada" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='310' height='64'%3E%3Crect width='310' height='64' rx='12' fill='%23146c72'/%3E%3Ctext x='155' y='40' font-size='20' text-anchor='middle' fill='white'%3EAbrir en AR Quick Look%3C/text%3E%3C/svg%3E" /></a>
+    <p id="mobile-ios-status" role="status"></p>
+    <button type="button" id="mobile-ios-close">Cerrar</button>
   </div>
   <script type="module" src="app.js"></script>
 </body>
