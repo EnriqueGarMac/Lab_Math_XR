@@ -78,7 +78,7 @@ export function createBakedShadow(scene,{size=384,opacity=.42}={}){
   const material=new THREE.MeshStandardMaterial({
     color:0xffffff,map:texture,transparent:true,opacity:1,
     metalness:0,roughness:1,depthWrite:false,
-    side:THREE.DoubleSide
+    side:THREE.FrontSide
   });
   const shadow=new THREE.Mesh(new THREE.PlaneGeometry(width,depth),material);
   shadow.rotation.x=-Math.PI/2;
